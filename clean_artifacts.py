@@ -1,61 +1,79 @@
 # Reads raw EGI and saves as FIF
 # Usage:
-#     python clean_artifacts.py
+#     python clean_artifacts.py /path/to/dirty/file /path/to/clean/file
 import matplotlib.pyplot as plt
 import mne
 import numpy as np
+import sys
 
-# set filenames
-clean_file = '/home/zairex/Code/cibr/data/cleaned/KH007-raw.fif'
-temp_ica = '/home/zairex/Code/cibr/analysis/scripts/data/temp-ica.fif'
-raw_file = '/home/zairex/Code/cibr/data/MI_eggie/MI_KH007_Meditaatio 201302.002'
 
-if raw_file.endswith('.fif'):
-    raw = mne.io.Raw(raw_file, preload=True)
-else:
-    # assume egi
-    raw = mne.io.read_raw_egi(raw_file)
+def read_raw(filename):
+    if filename.endswith('.fif'):
+        raw = mne.io.Raw(filename, preload=True)
+    else:
+        # assume egi
+        raw = mne.io.read_raw_egi(filename)
+    return raw
 
-raw.filter(l_freq=1, h_freq=40)
 
-raw.plot()
+def get_ica_path(filename):
+    last_part = filename.split('/')[-1]
+    without_extension = ''.join(last_part.split('.')[:-1])
+    with_new_extension = '.' + without_extension + '-ica.fif'
+    final = '/'.join(filename.split('/')[:-1] + [with_new_extension])
+    return final
 
-picks = mne.pick_types(raw.info, eeg=True, meg=True, stim=False, exclude='bads')
 
-use_saved = raw_input('Use saved ica solution if found (y, n): ')
+def main(from_file, to_file):
 
-ica = None
-if use_saved == 'y': 
-    try:
-        ica = mne.preprocessing.ica.read_ica(temp_ica)
-    except IOError:
-        pass
-if not ica:
-    ica = mne.preprocessing.ICA(n_components=0.95, method='fastica')
-    ica.fit(raw, picks=picks)
-    ica.save(temp_ica)
+    temp_ica = get_ica_path(to_file)
+    raw = read_raw(from_file)
 
-sources = ica.get_sources(raw)
+    raw.filter(l_freq=1, h_freq=40)
 
-# alter amplitudes to get better plot 
-for source in sources._data:
-    for idx, amplitude in enumerate(source):
-        source[idx] = amplitude / 5000.0
+    raw.plot()
 
-sources.plot()
+    picks = mne.pick_types(raw.info, eeg=True, meg=True, stim=False, exclude='bads')
 
-indices = raw_input('Please enter indices (starts from zero) of '
-                    'ICA components to be zeroed out '
-                    '(separated with spaces, empty for none): ')
-if indices:
-    indices = map(int, indices.split(' '))
+    use_saved = raw_input('Use saved ica solution if found (y, n): ')
 
-    # project out selected ica components
-    ica.apply(raw, exclude=indices)
+    ica = None
+    if use_saved == 'y': 
+        try:
+            ica = mne.preprocessing.ica.read_ica(temp_ica)
+        except IOError:
+            print "Saved solution not found"
+    if not ica:
+        ica = mne.preprocessing.ICA(n_components=0.95, method='fastica')
+        ica.fit(raw, picks=picks)
+        ica.save(temp_ica)
 
-raw.plot()
+    sources = ica.get_sources(raw)
 
-to_be_saved = raw_input('Do you want to save (y, n)? ')
+    # alter amplitudes to get better plot 
+    for source in sources._data:
+        for idx, amplitude in enumerate(source):
+            source[idx] = amplitude / 5000.0
 
-if to_be_saved == 'y':
-    raw.save(clean_file, overwrite=True)
+    sources.plot()
+
+    indices = raw_input('Please enter indices (starts from zero) of '
+                        'ICA components to be zeroed out '
+                        '(separated with spaces, empty for none): ')
+    if indices:
+        indices = map(int, indices.split(' '))
+
+        # project out selected ica components
+        ica.apply(raw, exclude=indices)
+
+    raw.plot()
+
+    to_be_saved = raw_input('Do you want to save (y, n)? ')
+
+    if to_be_saved == 'y':
+        raw.save(to_file, overwrite=True)
+
+
+if __name__ == '__main__':
+    cla = sys.argv
+    main(cla[1], cla[2])
