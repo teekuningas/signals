@@ -1,4 +1,4 @@
-# Reads raw EGI and saves as FIF
+# Allows to project ICA components out of raw data
 # Usage:
 #     python clean_artifacts.py /path/to/dirty/file /path/to/clean/file
 import matplotlib.pyplot as plt

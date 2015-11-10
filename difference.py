@@ -1,6 +1,6 @@
-# Plots two raw files on top of each other
+# Plots listed raw files on top of each other
 # Usage:
-#     python difference.py /path/to/first/file /path/to/second/file
+#     python difference.py /path/to/first/file /path/to/second/file ...
 import numpy as np
 import mne
 import matplotlib.pyplot as plt
