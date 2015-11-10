@@ -38,7 +38,7 @@ class DifferencePlot:
     def plot_window(self):
         self.figure.clear()
         for channel in range(self.window_height):
-            top = self.y % (self.datasets[0].shape[0] - self.window_height)
+            real_channel = (self.y + channel) % (self.datasets[0].shape[0])
             width = self.window_width
             left = (self.x * width) % self.datasets[0].shape[1]
 
@@ -46,11 +46,11 @@ class DifferencePlot:
             ax.set_xlim([left, left + width])
 
             if self.ch_names:
-                ax.set_title(self.ch_names[channel + top])
+                ax.set_title(self.ch_names[real_channel])
 
             for dataset in self.datasets:
-                data = dataset[channel + top]
-                ax.plot(range(left, left+ width), data[left:left+width])
+                data = dataset[real_channel]
+                ax.plot(range(left, left + width), data[left:left+width])
 
         plt.draw()
 
@@ -81,7 +81,7 @@ def main(paths):
     raw_objects = [read_raw(path) for path in paths]
     ch_names = raw_objects[0].info['ch_names']
     datasets = [raw._data for raw in raw_objects]
-    difference_plot = DifferencePlot(datasets, ch_names=ch_names, window_width=5000, window_height=5)
+    difference_plot = DifferencePlot(datasets, ch_names=ch_names, window_width=10000, window_height=5)
     
 
 if __name__ == '__main__':
