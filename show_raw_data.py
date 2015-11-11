@@ -16,7 +16,6 @@ def read_raw(filename):
 
 def main(filename):
     raw = read_raw(filename)
-    raw.filter(l_freq=1, h_freq=40)
     raw.plot()
     wait_for_input = raw_input('Enter anything to quit.')
 
