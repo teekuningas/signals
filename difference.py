@@ -78,10 +78,15 @@ def read_raw(filename):
 
 
 def main(paths):
+    window_size = raw_input('Please enter how many samples are shown in a plot window (default 10000): ')
+    try:
+        window_width = int(window_size)
+    except ValueError:
+        window_width = 10000
     raw_objects = [read_raw(path) for path in paths]
     ch_names = raw_objects[0].info['ch_names']
     datasets = [raw._data for raw in raw_objects]
-    difference_plot = DifferencePlot(datasets, ch_names=ch_names, window_width=10000, window_height=5)
+    difference_plot = DifferencePlot(datasets, ch_names=ch_names, window_width=window_width, window_height=5)
     
 
 if __name__ == '__main__':
