@@ -33,9 +33,9 @@ def main(directory):
     for event_count in event_counts:
         print event_count
 
-    print "More than 4 triggers"
+    print "More than 9 triggers"
     for event_count in event_counts:
-        if event_count[1] > 4:
+        if event_count[1] > 9:
             print event_count
 
     print "Corrupted: "
