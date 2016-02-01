@@ -40,7 +40,6 @@ class TSEPlot():
         self.window = 80000
         self.position = 0
 
-
         try: 
             self.triggers = mne.find_events(raw)[:, 0]
         except: 
@@ -78,6 +77,7 @@ class TSEPlot():
             temp_y = self.tse_data[idx][start:end]
 
             ax = self.axarray[idx%2, idx/2]
+            ax.set_title(str(channel))
             ax.plot(temp_x, temp_y)
             ax.set_ylim([0, max_value])
             ax.set_xlim([self.x[start], self.x[end]])
