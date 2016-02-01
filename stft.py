@@ -12,10 +12,10 @@ wsize = int(sfreq*2)
 tstep = int(wsize/4)
 freq_limit = 100
 channels = [
-    16, # middle front 
+    11, # middle front 
     75, # middle back
-    114, # middle right
-    44, # middle left
+    108, # middle right
+    45, # middle left
 ]
 
 
