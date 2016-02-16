@@ -29,7 +29,7 @@ def main(from_file, to_file):
     temp_ica = get_ica_path(to_file)
     raw = read_raw(from_file)
 
-    raw.filter(l_freq=1, h_freq=40)
+    raw.filter(l_freq=1, h_freq=80)
 
     raw.plot()
 

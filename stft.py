@@ -3,15 +3,15 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import mne
 
-raw = mne.io.Raw('/home/zairex/Code/cibr/data/graduaineisto/meditaatio/KH004_MED-raw.fif', preload=True)
+raw = mne.io.Raw('/home/zairex/Code/cibr/demo/MI_KH009_MED-bads-raw-pre.fif', preload=True)
 # raw = mne.io.Raw('/home/zairex/Code/cibr/data/graduaineisto/EOEC/KH004_EOEC-raw.fif', preload=True)
 
-data = raw._data
+data = raw._data[:128]
 info = raw.info
 sfreq = info['sfreq']
-wsize = int(sfreq*4)
+wsize = int(sfreq/2)
 tstep = int(wsize/2)
-freq_limit = 30
+freq_limit = 20
 channels = [
     11, # middle front Fz
     75, # middle back Oz
