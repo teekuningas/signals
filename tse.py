@@ -7,9 +7,10 @@ from scipy import signal
 
 raw = mne.io.Raw('/home/zairex/Code/cibr/demo/MI_KH009_MED-bads-raw-pre.fif', preload=True)
 # raw = mne.io.Raw('/home/zairex/Code/cibr/data/graduaineisto/EOEC/KH004_EOEC-raw.fif', preload=True)
+# raw = mne.io.Raw('/home/zairex/Code/cibr/data/meditation_data/EOEC/KH009_EOEC-raw.fif', preload=True)
 
 data = raw._data[:128]
-band = [8, 12]
+band = [4, 8]
 butter_order = 4
 sample_rate = raw.info['sfreq']
 channels = [
@@ -37,7 +38,7 @@ class TSEPlot():
         absolute = np.absolute(filtered_data)
 
         # running mean
-        N = 5000
+        N = 10000
         averaged = np.zeros((4, absolute.shape[1] - N + 1))
         for i in range(absolute.shape[0]):
             averaged[i] = np.convolve(absolute[i], np.ones((N,))/N, mode='valid')
@@ -46,7 +47,7 @@ class TSEPlot():
 
         self.x = np.arange(0, float(self.tse_data.shape[1])/sample_rate, 1/sample_rate)
 
-        self.window = 80000
+        self.window = 32000
         self.position = 0
 
         try: 

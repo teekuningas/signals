@@ -3,15 +3,15 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import mne
 
-raw = mne.io.Raw('/home/zairex/Code/cibr/demo/MI_KH009_MED-bads-raw-pre.fif', preload=True)
-# raw = mne.io.Raw('/home/zairex/Code/cibr/data/graduaineisto/EOEC/KH004_EOEC-raw.fif', preload=True)
+# raw = mne.io.Raw('/home/zairex/Code/cibr/demo/MI_KH009_MED-bads-raw-pre.fif', preload=True)
+raw = mne.io.Raw('/home/zairex/Code/cibr/data/meditation_data/eoec/MI_KH009_EOEC-raw.fif', preload=True)
 
 data = raw._data[:128]
 info = raw.info
 sfreq = info['sfreq']
 wsize = int(sfreq/2)
 tstep = int(wsize/2)
-freq_limit = 20
+freq_limit = 40
 channels = [
     11, # middle front Fz
     75, # middle back Oz
@@ -26,7 +26,7 @@ class STFTPlot():
         self.tfr = mne.time_frequency.stft(data, wsize, tstep)
         self.x = np.arange(0, self.tfr.shape[2]*tstep, tstep) / sfreq
         self.y = mne.time_frequency.stftfreq(wsize, sfreq)
-        self.plot_window = 40
+        self.plot_window = 100
         self.position = 0
 
         # find index for frequency limit
@@ -51,10 +51,10 @@ class STFTPlot():
             else:
                 self.position = 0
         if event.key == 'right':
-            if self.position + 2*self.plot_window < len(self.x):
+            if self.position + 2*self.plot_window < self.width:
                 self.position = self.position + self.plot_window
             else:
-                self.position = len(self.x) - self.plot_window - 1
+                self.position = self.width - self.plot_window - 1
         
         self.plot_tfr(self.position, self.position + self.plot_window)
 
@@ -70,8 +70,7 @@ class STFTPlot():
 
             ax = self.axarray[idx%2, idx/2]
             ax.set_title(str(channel))
-            ax.pcolormesh(temp_x, temp_y, 10 * np.log10(temp_z), 
-                          shading='gouraud')
+            ax.pcolormesh(temp_x, temp_y, 10 * np.log10(temp_z))
             ax.axis('tight')
 
             for trigger in self.triggers:
