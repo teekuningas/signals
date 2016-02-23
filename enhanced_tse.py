@@ -6,12 +6,13 @@ import math
 from scipy import signal
 
 
-FILES = [
-    {
-        'meditation': '/home/zairex/Code/cibr/demo/MI_KH009_MED-bads-raw-pre.fif',
-        'resting': '/home/zairex/Code/cibr/demo/MI_KH009_EOEC-raw-pre.fif'
-    },
-]
+FILES = {
+    'KH009':
+        {
+            'med': '/home/zairex/Code/cibr/demo/MI_KH009_MED-bads-raw-pre.fif',
+            'rest': '/home/zairex/Code/cibr/demo/MI_KH009_EOEC-raw-pre.fif'
+        },
+    }
 
 CHANNELS = {
     'Fz': 11, # middle front 
@@ -30,31 +31,43 @@ BANDS = {
 BUTTER_ORDER = 4
 
 
-class PlottableSubject(object):
+class PlottableRange(object):
     """
     """
-    def __init__(self, files, band, channel, title=''):
+    def __init__(self, filename, band, channel, title=''):
+        pass
+
+
+class PlottableTriggers(object):
+    """
+    """
+    def __init__(self, filename):
+        pass
+
+
+class PlottableTSE(object):
+    """
+    """
+    def __init__(self, filename, band, channel, color='Blue', title=''):
 
         self._title = title
 
-        med_raw = mne.io.Raw(files['meditation'], preload=True)
-        rest_raw = mne.io.Raw(files['resting'], preload=True)
+        raw = mne.io.Raw(filename, preload=True)
+        data = raw._data[:128]
+
+        sample_rate = raw.info['sfreq']
+
+        self._color = color
+
+        self._sample_rate = sample_rate
         
-        med_data = med_raw._data[:128]
-        rest_data = rest_raw._data[:128]
+        self._y = self._process_data(data, sample_rate, band, channel)
 
-        med_sample_rate = med_raw.info['sfreq']
-        rest_sample_rate = rest_raw.info['sfreq']
-
-        self._sample_rate = med_sample_rate
-        
-        self._y = self._process_data(med_data, med_sample_rate, band, channel)
-
-        self._x = np.arange(0, float(len(self._y))/med_sample_rate, 
-                            1/float(med_sample_rate))
+        self._x = np.arange(0, float(len(self._y))/sample_rate, 
+                            1/float(sample_rate))
 
         try: 
-            self._triggers = mne.find_events(med_raw)[:, 0]
+            self._triggers = mne.find_events(raw)[:, 0]
         except: 
             self._triggers = []
 
@@ -101,31 +114,30 @@ class PlottableSubject(object):
     def sample_rate(self):
         return self._sample_rate
 
+    @property
+    def color(self):
+        return self._color
+
 
 class TSEPlot(object):
 
-    def __init__(self, subjects, window):
+    def __init__(self, plottables, window):
 
-        self.subjects = subjects
+        self.plottables = plottables
         self.window = window
         self.position = 0
 
-        if len(subjects) == 0:
-            raise ValueError('Must have at least one plot')
+        max_width = 0
+        for plottable in plottables:
+            tse_list = plottable['tse']
+            for tse in tse_list:
+                if len(tse.x) > max_width:
+                    max_width = len(tse.x)
+        self.plot_width = max_width
 
-        self.width = len(subjects[0].x)
-
-        max_value = 0
-        for y in [subject.y for subject in self.subjects]:
-            temp_max = y.max()
-            if temp_max > max_value:
-                max_value = temp_max
-        self.max_value = max_value
-
-        fig, self.axarray = plt.subplots(len(subjects))
-
-        key_release_cid = fig.canvas.mpl_connect('key_release_event', 
-                                                 self.on_key_release)
+        self.fig = plt.figure()
+        key_release_cid = self.fig.canvas.mpl_connect('key_release_event', 
+                                                      self.on_key_release)
 
         self.plot_window(self.position, self.window)
 
@@ -138,40 +150,80 @@ class TSEPlot(object):
             else:
                 self.position = 0
         if event.key == 'right':
-            if self.position + 2*self.window < self.width:
+            if self.position + 2*self.window < self.plot_width:
                 self.position = self.position + self.window
             else:
-                self.position = self.width - self.window - 1
+                self.position = self.plot_width - self.window - 1
         
         self.plot_window(self.position, self.position + self.window)
 
     def plot_window(self, start, end):
 
-        for ax in self.axarray:
-            ax.clear()
+        self.fig.clear()
 
-        for idx, subject in enumerate(self.subjects):
-            temp_x = subject.x[start:end]
-            temp_y = subject.y[start:end]
-            
-            ax = self.axarray[idx]
+        for idx, plottable in enumerate(self.plottables):
+            orig_ax = plt.subplot(len(self.plottables), 1, idx+1)
+            orig_ax.set_title(plottable.get('title', ''))
+            orig_ax.set_xlabel('seconds')
 
-            ax.set_title(subject.title)
-            ax.plot(temp_x, temp_y)
-            ax.set_ylim([0, self.max_value])
-            ax.set_xlim([subject.x[start], subject.x[end]])
+            for j, tse in enumerate(plottable.get('tse', ())):
+                if j == 0:
+                    ax = orig_ax
+                else:
+                    ax = orig_ax.twinx()
+                if j > 1:
+                    ax.spines['right'].set_position(('axes', 1.0 + (j-1)*0.1))
+                    self.fig.subplots_adjust(right=0.85 - 0.1*(j-2))
+                    ax.set_frame_on(True)
+                    ax.patch.set_visible(False)
+                temp_x = tse.x[start:end]
+                temp_y = tse.y[start:end]
+                ax.plot(temp_x, temp_y, color=tse.color)
+                ax.set_ylim([tse.y.min(), tse.y.max()])
+                ax.set_xlim([tse.x[start], tse.x[end]])
+                ax.set_ylabel(tse.title, color=tse.color)
+                ax.tick_params(axis='y', colors=tse.color)
+                ax.ticklabel_format(style='plain')
 
-            for trigger in subject.triggers:
-                patch_x = float((trigger - subject.x[start])) / subject.sample_rate  # noqa
-                ax.add_patch(
-                    patches.Rectangle((patch_x, 0), 0.2, self.max_value/2))
+            # do ranges!
+            # ...
 
-            plt.draw()
+            # do triggers!
+            # for trigger in subject.triggers:
+            #     patch_x = float((trigger - subject.x[start])) / subject.sample_rate  # noqa
+            #     ax.add_patch(
+            #         patches.Rectangle((patch_x, 0), 0.2, self.max_value/2))
+
+        plt.draw()
 
 
 if __name__ == '__main__':
-    subjects = [
-        PlottableSubject(FILES[0], BANDS['alpha'], CHANNELS['Oz'], title='alpha Oz'),
-        PlottableSubject(FILES[0], BANDS['alpha'], CHANNELS['Fz'], title='alpha Fz'),
+    plottables = [
+        {
+            'title': 'alpha Oz',
+            'tse': [
+                PlottableTSE(FILES['KH009']['med'], BANDS['alpha'], CHANNELS['Oz'], color='Blue', title='alpha'),  # noqa
+                PlottableTSE(FILES['KH009']['med'], BANDS['theta'], CHANNELS['Oz'], color='Red', title='theta'),  # noqa
+                PlottableTSE(FILES['KH009']['med'], BANDS['beta'], CHANNELS['Oz'], color='Green', title='beta'),  # noqa
+            ],
+            'range': [
+                PlottableRange(FILES['KH009']['med'], BANDS['alpha'], CHANNELS['Oz'], title='rest alpha range')  # noqa
+            ],
+            'trigger': [
+                PlottableTriggers(FILES['KH009']['med'])
+            ]
+        },
+        {
+            'title': 'alpha Fz',
+            'tse': [
+                PlottableTSE(FILES['KH009']['med'], BANDS['alpha'], CHANNELS['Fz'], title='alpha'),  # noqa
+            ],
+            'range': [
+                PlottableRange(FILES['KH009']['med'], BANDS['alpha'], CHANNELS['Fz'], title='rest alpha range')  # noqa
+            ],
+            'trigger': [
+                PlottableTriggers(FILES['KH009']['med'])
+            ]
+        },
     ]
-    stft = TSEPlot(subjects, window=32000)
+    stft = TSEPlot(plottables, window=32000)
