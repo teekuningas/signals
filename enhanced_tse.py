@@ -42,7 +42,37 @@ class PlottableTriggers(object):
     """
     """
     def __init__(self, filename):
-        pass
+        raw = mne.io.Raw(filename, preload=True)
+        try: 
+            self._times = mne.find_events(raw)[:, 0]
+        except: 
+            self._times = []
+
+        self._sample_rate = raw.info['sfreq']
+
+    @property
+    def times(self):
+        return self._times
+
+    @property
+    def sample_rate(self):
+        return self._sample_rate
+
+
+class PlottableCustomTriggers(object):
+    """
+    """
+    def __init__(self, times, sample_rate):
+        self._times = times
+        self._sample_rate = sample_rate
+
+    @property
+    def times(self):
+        return self._times
+
+    @property
+    def sample_rate(self):
+        return self._sample_rate
 
 
 class PlottableTSE(object):
@@ -50,26 +80,16 @@ class PlottableTSE(object):
     """
     def __init__(self, filename, band, channel, color='Blue', title=''):
 
-        self._title = title
-
         raw = mne.io.Raw(filename, preload=True)
         data = raw._data[:128]
-
         sample_rate = raw.info['sfreq']
 
+        self._title = title
         self._color = color
-
         self._sample_rate = sample_rate
-        
         self._y = self._process_data(data, sample_rate, band, channel)
-
         self._x = np.arange(0, float(len(self._y))/sample_rate, 
                             1/float(sample_rate))
-
-        try: 
-            self._triggers = mne.find_events(raw)[:, 0]
-        except: 
-            self._triggers = []
 
     def _process_data(self, data, sample_rate, band, channel):
 
@@ -127,6 +147,7 @@ class TSEPlot(object):
         self.window = window
         self.position = 0
 
+        # max width is derived from the longest tse's length
         max_width = 0
         for plottable in plottables:
             tse_list = plottable['tse']
@@ -165,7 +186,8 @@ class TSEPlot(object):
             orig_ax = plt.subplot(len(self.plottables), 1, idx+1)
             orig_ax.set_title(plottable.get('title', ''))
             orig_ax.set_xlabel('seconds')
-
+ 
+            # do tse's!
             for j, tse in enumerate(plottable.get('tse', ())):
                 if j == 0:
                     ax = orig_ax
@@ -189,12 +211,19 @@ class TSEPlot(object):
             # ...
 
             # do triggers!
-            # for trigger in subject.triggers:
-            #     patch_x = float((trigger - subject.x[start])) / subject.sample_rate  # noqa
-            #     ax.add_patch(
-            #         patches.Rectangle((patch_x, 0), 0.2, self.max_value/2))
+            for trigger in plottable['trigger']:
+                for time in trigger.times:
+                    # this comparison is in samples
+                    if time >= start and time < end:
+                        # this x is in seconds
+                        patch_x = float(time) / trigger.sample_rate
+                        patch_width = 0.2
+                        orig_ax.add_patch(
+                            patches.Rectangle((patch_x - patch_width/2, 0), 
+                                              patch_width, 0.01)
+                        )
+        plt.draw()   
 
-        plt.draw()
 
 
 if __name__ == '__main__':
