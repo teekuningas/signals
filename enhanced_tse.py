@@ -22,6 +22,7 @@ CHANNELS = {
 }
 
 BANDS = {
+    'gamma': (20, 40),
     'alpha': (8, 12),
     'beta': (12, 20),
     'theta': (4, 8),
@@ -31,11 +32,83 @@ BANDS = {
 BUTTER_ORDER = 4
 
 
+def _create_tse_data(data, sample_rate, band, channel):
+
+    # band-pass filter
+    l_cutoff = 1.0 * band[0] / (sample_rate / 2)
+    h_cutoff = 1.0 * band[1] / (sample_rate / 2)
+    b, a = signal.butter(BUTTER_ORDER, [l_cutoff, h_cutoff], btype='band')
+
+    filtered = signal.filtfilt(b, a, data[channel-1])
+    if math.isnan(filtered[0]):
+        raise Exception("Please adjust butterworth " 
+                        "order or frequency band")
+
+    # rectify
+    absolute = np.absolute(filtered)
+
+    # use running mean to smoothen the signal
+    N = int(10 * sample_rate)
+    averaged = np.zeros(len(absolute) - N + 1)
+    averaged = np.convolve(absolute, np.ones((N,))/N, mode='valid')
+
+    return averaged
+
+
 class PlottableRange(object):
     """
     """
-    def __init__(self, filename, band, channel, title=''):
-        pass
+    def __init__(self, filename, band, channel, intervals=[], color='Blue', title=''):
+
+        raw = mne.io.Raw(filename, preload=True)
+        data = raw._data[:128]
+        sample_rate = raw.info['sfreq']
+
+        self._title = title
+        self._color = color
+
+        data = _create_tse_data(data, sample_rate, band, channel)
+
+        # if not specified intervals, use the whole data
+        if not intervals:
+            intervals = [(0, len(data))]
+        
+        max_value = None
+        min_value = None
+        average_value = 0
+        element_count = 0
+        for x0, x1 in intervals:
+            for x in range(x0, x1):
+                if max_value is None or data[x] > max_value:
+                    max_value = data[x]
+                if min_value is None or data[x] < min_value:
+                    min_value = data[x]
+                average_value += data[x]
+                element_count += 1
+
+        self._low_limit = min_value
+        self._high_limit = max_value
+        self._average = float(average_value) / element_count
+
+    @property
+    def average(self):
+        return self._average
+
+    @property
+    def low_limit(self):
+        return self._low_limit
+
+    @property
+    def high_limit(self):
+        return self._high_limit
+
+    @property
+    def title(self):
+        return self._title
+
+    @property
+    def color(self):
+        return self._color
 
 
 class PlottableTriggers(object):
@@ -87,36 +160,9 @@ class PlottableTSE(object):
         self._title = title
         self._color = color
         self._sample_rate = sample_rate
-        self._y = self._process_data(data, sample_rate, band, channel)
+        self._y = _create_tse_data(data, sample_rate, band, channel)
         self._x = np.arange(0, float(len(self._y))/sample_rate, 
                             1/float(sample_rate))
-
-    def _process_data(self, data, sample_rate, band, channel):
-
-        # band-pass filter
-        l_cutoff = 1.0 * band[0] / (sample_rate / 2)
-        h_cutoff = 1.0 * band[1] / (sample_rate / 2)
-        b, a = signal.butter(BUTTER_ORDER, [l_cutoff, h_cutoff], btype='band')
-
-        filtered = signal.filtfilt(b, a, data[channel-1])
-        if math.isnan(filtered[0]):
-            raise Exception("Please adjust butterworth " 
-                            "order or frequency band")
-
-        # rectify
-        absolute = np.absolute(filtered)
-
-        # use running mean to smoothen the signal
-        N = int(10 * sample_rate)
-        averaged = np.zeros(len(absolute) - N + 1)
-        averaged = np.convolve(absolute, np.ones((N,))/N, mode='valid')
-
-        return averaged
-       
-
-    @property
-    def triggers(self):
-        return self._triggers
 
     @property
     def x(self):
