@@ -4,7 +4,7 @@ import matplotlib.patches as patches
 import mne
 
 # raw = mne.io.Raw('/home/zairex/Code/cibr/demo/MI_KH009_MED-bads-raw-pre.fif', preload=True)
-raw = mne.io.Raw('/home/zairex/Code/cibr/data/meditation_data/eoec/MI_KH009_EOEC-raw.fif', preload=True)
+raw = mne.io.Raw('/home/zairex/Code/cibr/data/graduaineisto/EOEC/KH016_EOEC-raw.fif', preload=True)
 
 data = raw._data[:128]
 info = raw.info
@@ -51,10 +51,10 @@ class STFTPlot():
             else:
                 self.position = 0
         if event.key == 'right':
-            if self.position + 2*self.plot_window < self.width:
+            if self.position + 2*self.plot_window < len(self.x):
                 self.position = self.position + self.plot_window
             else:
-                self.position = self.width - self.plot_window - 1
+                self.position = len(self.x) - self.plot_window - 1
         
         self.plot_tfr(self.position, self.position + self.plot_window)
 
