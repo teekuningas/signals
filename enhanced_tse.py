@@ -58,7 +58,7 @@ def _create_tse_data(data, sample_rate, band, channel):
 class PlottableRange(object):
     """
     """
-    def __init__(self, filename, band, channel, intervals=[], color='Blue', title=''):
+    def __init__(self, filename, band, channel, intervals=[], color='Blue', title=''):  # noqa
 
         raw = mne.io.Raw(filename, preload=True)
         data = raw._data[:128]
@@ -151,7 +151,7 @@ class PlottableCustomTriggers(object):
 class PlottableTSE(object):
     """
     """
-    def __init__(self, filename, band, channel, color='Blue', title=''):
+    def __init__(self, filename, band, channel, color='Blue', title='', ranges=[]):  # noqa
 
         raw = mne.io.Raw(filename, preload=True)
         data = raw._data[:128]
@@ -160,6 +160,7 @@ class PlottableTSE(object):
         self._title = title
         self._color = color
         self._sample_rate = sample_rate
+        self._ranges = ranges
         self._y = _create_tse_data(data, sample_rate, band, channel)
         self._x = np.arange(0, float(len(self._y))/sample_rate, 
                             1/float(sample_rate))
@@ -183,6 +184,11 @@ class PlottableTSE(object):
     @property
     def color(self):
         return self._color
+
+    @property
+    def ranges(self):
+        return self._ranges
+
 
 
 class TSEPlot(object):
@@ -247,14 +253,49 @@ class TSEPlot(object):
                 temp_x = tse.x[start:end]
                 temp_y = tse.y[start:end]
                 ax.plot(temp_x, temp_y, color=tse.color)
-                ax.set_ylim([tse.y.min(), tse.y.max()])
                 ax.set_xlim([tse.x[start], tse.x[end]])
                 ax.set_ylabel(tse.title, color=tse.color)
                 ax.tick_params(axis='y', colors=tse.color)
                 ax.ticklabel_format(style='plain')
 
-            # do ranges!
-            # ...
+                # do ranges!
+                max_ = None
+                min_ = None
+                for range_ in tse.ranges:
+                    high = range_.high_limit
+                    low = range_.low_limit
+
+                    if max_ is None or high > max_:
+                        max_ = high
+                    if min_ is None or low < min_:
+                         min_ = low
+
+                    average = range_.average
+                    color = range_.color
+                    height = high - low
+
+                    # range
+                    rectangle = patches.Rectangle((tse.x[start], low), tse.x[end], high - low)
+                    rectangle.set_alpha(0.20)
+                    rectangle.set_color(color)
+                    ax.add_patch(rectangle)
+
+                    # average
+                    rectangle = patches.Rectangle((tse.x[start], average - height/50.0), tse.x[end], 2*height/50.0)
+                    rectangle.set_alpha(0.4)
+                    rectangle.set_color(color)
+                    ax.add_patch(rectangle)
+
+                if max_:
+                    max_ = max(max_, tse.y.max())
+                else:
+                    max_ = tse.y.max()
+                if min_:
+                    min_ = min(min_, tse.y.min())
+                else:
+                    min_ = tse.y.min()
+
+                ax.set_ylim([min_ - abs(min_*0.1), max_ + abs(max_*0.1)])
 
             # do triggers!
             for trigger in plottable['trigger']:
@@ -275,26 +316,25 @@ class TSEPlot(object):
 if __name__ == '__main__':
     plottables = [
         {
-            'title': 'alpha Oz',
+            'title': 'many bands at Oz',
             'tse': [
                 PlottableTSE(FILES['KH009']['med'], BANDS['alpha'], CHANNELS['Oz'], color='Blue', title='alpha'),  # noqa
                 PlottableTSE(FILES['KH009']['med'], BANDS['theta'], CHANNELS['Oz'], color='Red', title='theta'),  # noqa
                 PlottableTSE(FILES['KH009']['med'], BANDS['beta'], CHANNELS['Oz'], color='Green', title='beta'),  # noqa
             ],
-            'range': [
-                PlottableRange(FILES['KH009']['med'], BANDS['alpha'], CHANNELS['Oz'], title='rest alpha range')  # noqa
-            ],
             'trigger': [
                 PlottableTriggers(FILES['KH009']['med'])
             ]
         },
+
         {
-            'title': 'alpha Fz',
+            'title': 'alpha Oz with ranges',
             'tse': [
-                PlottableTSE(FILES['KH009']['med'], BANDS['alpha'], CHANNELS['Fz'], title='alpha'),  # noqa
-            ],
-            'range': [
-                PlottableRange(FILES['KH009']['med'], BANDS['alpha'], CHANNELS['Fz'], title='rest alpha range')  # noqa
+                PlottableTSE(FILES['KH009']['med'], BANDS['alpha'], CHANNELS['Oz'], title='alpha',  # noqa
+                    ranges=[
+                        PlottableRange(FILES['KH009']['rest'], BANDS['alpha'], CHANNELS['Oz'], intervals=[(5000, 80000)], title='rest alpha range'),  # noqa
+                    ]
+                ), 
             ],
             'trigger': [
                 PlottableTriggers(FILES['KH009']['med'])
