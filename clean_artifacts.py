@@ -33,8 +33,6 @@ def main(from_file, to_file):
 
     raw.plot()
 
-    picks = mne.pick_types(raw.info, eeg=True, meg=True, stim=False, exclude='bads')
-
     use_saved = raw_input('Use saved ica solution if found (y, n): ')
 
     ica = None
@@ -45,7 +43,7 @@ def main(from_file, to_file):
             print "Saved solution not found"
     if not ica:
         ica = mne.preprocessing.ICA(n_components=0.95, method='fastica')
-        ica.fit(raw, picks=picks)
+        ica.fit(raw)
         ica.save(temp_ica)
 
     sources = ica.get_sources(raw)
