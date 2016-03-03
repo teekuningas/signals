@@ -7,10 +7,35 @@ from scipy import signal
 
 
 FILES = {
+    # experienced
     'KH009':
         {
-            'med': '/home/zairex/Code/cibr/demo/MI_KH009_MED-bads-raw-pre.fif',
-            'rest': '/home/zairex/Code/cibr/demo/MI_KH009_EOEC-raw-pre.fif'
+            'med': '/home/zairex/Code/cibr/data/gradudemo/KH009_MED-pre.fif',
+            'rest': '/home/zairex/Code/cibr/data/gradudemo/KH009_EOEC-pre.fif'
+        },
+    # experienced
+    'KH005':
+        {
+            'med': '/home/zairex/Code/cibr/data/gradudemo/KH005_MED-pre.fif',
+            'rest': '/home/zairex/Code/cibr/data/gradudemo/KH005_EOEC-pre.fif'
+        },
+    # experienced
+    'KH007':
+        {
+            'med': '/home/zairex/Code/cibr/data/gradudemo/KH007_MED-pre.fif',
+            'rest': '/home/zairex/Code/cibr/data/gradudemo/KH007_EOEC-pre.fif'
+        },
+    # not experienced
+    'KH013':
+        {
+            'med': '/home/zairex/Code/cibr/data/gradudemo/KH013_MED-pre.fif',
+            'rest': '/home/zairex/Code/cibr/data/gradudemo/KH013_EOEC-pre.fif'
+        },
+    # not experienced
+    'KH028':
+        {
+            'med': '/home/zairex/Code/cibr/data/gradudemo/KH028_MED-pre.fif',
+            'rest': '/home/zairex/Code/cibr/data/gradudemo/KH028_EOEC-pre.fif'
         },
     }
 
@@ -72,7 +97,7 @@ class PlottableRange(object):
         # if not specified intervals, use the whole data
         if not intervals:
             intervals = [(0, len(data))]
-        
+
         max_value = None
         min_value = None
         average_value = 0
@@ -314,30 +339,51 @@ class TSEPlot(object):
 
 
 if __name__ == '__main__':
+
+    def get_baseline_intervals(filename):
+        raw = mne.io.Raw(filename, preload=True)
+        sfreq = int(raw.info['sfreq'])
+        try: 
+            events = mne.find_events(raw)[:, 0]
+        except: 
+            events = []
+
+        intervals = []
+
+        for idx in range(len(events) - 1):
+            # lets take all intervals that are at least 10 seconds in length
+            # and at least 20 seconds away from events
+            if events[idx+1] - events[idx] >= 50*sfreq:
+                intervals.append((events[idx] + 20*sfreq, events[idx+1] - 20*sfreq))  # noqa
+
+        return intervals
+
+    subject = 'KH009'
     plottables = [
         {
             'title': 'many bands at Oz',
             'tse': [
-                PlottableTSE(FILES['KH009']['med'], BANDS['alpha'], CHANNELS['Oz'], color='Blue', title='alpha'),  # noqa
-                PlottableTSE(FILES['KH009']['med'], BANDS['theta'], CHANNELS['Oz'], color='Red', title='theta'),  # noqa
-                PlottableTSE(FILES['KH009']['med'], BANDS['beta'], CHANNELS['Oz'], color='Green', title='beta'),  # noqa
+                PlottableTSE(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], color='Blue', title='alpha'),  # noqa
+                PlottableTSE(FILES[subject]['med'], BANDS['theta'], CHANNELS['Oz'], color='Red', title='theta'),  # noqa
+                PlottableTSE(FILES[subject]['med'], BANDS['beta'], CHANNELS['Oz'], color='Green', title='beta'),  # noqa
             ],
             'trigger': [
-                PlottableTriggers(FILES['KH009']['med'])
+                PlottableTriggers(FILES[subject]['med'])
             ]
         },
 
         {
             'title': 'alpha Oz with ranges',
             'tse': [
-                PlottableTSE(FILES['KH009']['med'], BANDS['alpha'], CHANNELS['Oz'], title='alpha',  # noqa
+                PlottableTSE(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], title='alpha',  # noqa
                     ranges=[
-                        PlottableRange(FILES['KH009']['rest'], BANDS['alpha'], CHANNELS['Oz'], intervals=[(5000, 80000)], title='rest alpha range'),  # noqa
+                        # PlottableRange(FILES[subject]['rest'], BANDS['alpha'], CHANNELS['Oz'], intervals=[(5000, 80000)], title='rest alpha range'),  # noqa
+                        PlottableRange(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], intervals=get_baseline_intervals(FILES[subject]['med']), title='meditation alpha range'),  # noqa
                     ]
                 ), 
             ],
             'trigger': [
-                PlottableTriggers(FILES['KH009']['med'])
+                PlottableTriggers(FILES[subject]['med'])
             ]
         },
     ]
