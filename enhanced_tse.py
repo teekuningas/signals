@@ -8,6 +8,11 @@ from scipy import signal
 
 FILES = {
     # experienced
+    'KH002':
+        {
+            'med': '/home/zairex/Code/cibr/data/gradudemo/KH002_MED-pre.fif',
+            'rest': '/home/zairex/Code/cibr/data/gradudemo/KH002_EOEC-pre.fif'
+        },
     'KH009':
         {
             'med': '/home/zairex/Code/cibr/data/gradudemo/KH009_MED-pre.fif',
@@ -57,7 +62,7 @@ BANDS = {
 BUTTER_ORDER = 4
 
 
-def _create_tse_data(data, sample_rate, band, channel):
+def _create_tse_data(data, sample_rate, band, channel, smoothing_filter_length):
 
     # band-pass filter
     l_cutoff = 1.0 * band[0] / (sample_rate / 2)
@@ -73,7 +78,7 @@ def _create_tse_data(data, sample_rate, band, channel):
     absolute = np.absolute(filtered)
 
     # use running mean to smoothen the signal
-    N = int(10 * sample_rate)
+    N = smoothing_filter_length
     averaged = np.zeros(len(absolute) - N + 1)
     averaged = np.convolve(absolute, np.ones((N,))/N, mode='valid')
 
@@ -83,7 +88,7 @@ def _create_tse_data(data, sample_rate, band, channel):
 class PlottableRange(object):
     """
     """
-    def __init__(self, filename, band, channel, intervals=[], color='Blue', title=''):  # noqa
+    def __init__(self, filename, band, channel, smoothing_filter_length=15000, intervals=[], color='Blue', title=''):  # noqa
 
         raw = mne.io.Raw(filename, preload=True)
         data = raw._data[:128]
@@ -92,7 +97,7 @@ class PlottableRange(object):
         self._title = title
         self._color = color
 
-        data = _create_tse_data(data, sample_rate, band, channel)
+        data = _create_tse_data(data, sample_rate, band, channel, smoothing_filter_length)
 
         # if not specified intervals, use the whole data
         if not intervals:
@@ -176,19 +181,31 @@ class PlottableCustomTriggers(object):
 class PlottableTSE(object):
     """
     """
-    def __init__(self, filename, band, channel, color='Blue', title='', ranges=[]):  # noqa
+    def __init__(self, file_, band, channel, smoothing_filter_length=15000, color='Blue', title='', ranges=[], interval=None):  # noqa
 
-        raw = mne.io.Raw(filename, preload=True)
-        data = raw._data[:128]
+        if isinstance(file_, mne.io.Raw):
+            raw = file_
+        else:
+            raw = mne.io.Raw(file_, preload=True)
+
+        if not interval:
+            interval = [0, raw._data.shape[1]]
+
+        data = raw._data[:128, interval[0]:interval[1]]
         sample_rate = raw.info['sfreq']
 
         self._title = title
         self._color = color
         self._sample_rate = sample_rate
         self._ranges = ranges
-        self._y = _create_tse_data(data, sample_rate, band, channel)
+        self._y = _create_tse_data(data, sample_rate, band, channel, smoothing_filter_length)
         self._x = np.arange(0, float(len(self._y))/sample_rate, 
                             1/float(sample_rate))
+        self._smoothing_filter_length = smoothing_filter_length 
+
+    @property
+    def smoothing_filter_length(self):
+        return self._smoothing_filter_length
 
     @property
     def x(self):
@@ -263,14 +280,18 @@ class TSEPlot(object):
             orig_ax = plt.subplot(len(self.plottables), 1, idx+1)
             orig_ax.set_title(plottable.get('title', ''))
             orig_ax.set_xlabel('seconds')
- 
+
+            grand_high = None
+            grand_low = None
+
             # do tse's!
             for j, tse in enumerate(plottable.get('tse', ())):
-                if j == 0:
+
+                if j == 0 or plottable.get('unix'):
                     ax = orig_ax
                 else:
                     ax = orig_ax.twinx()
-                if j > 1:
+                if j > 1 and not plottable.get('unix'):
                     ax.spines['right'].set_position(('axes', 1.0 + (j-1)*0.1))
                     self.fig.subplots_adjust(right=0.85 - 0.1*(j-2))
                     ax.set_frame_on(True)
@@ -278,7 +299,7 @@ class TSEPlot(object):
                 temp_x = tse.x[start:end]
                 temp_y = tse.y[start:end]
                 ax.plot(temp_x, temp_y, color=tse.color)
-                ax.set_xlim([tse.x[start], tse.x[end]])
+                ax.set_xlim([tse.x[start], tse.x[end - 1]])
                 ax.set_ylabel(tse.title, color=tse.color)
                 ax.tick_params(axis='y', colors=tse.color)
                 ax.ticklabel_format(style='plain')
@@ -300,13 +321,13 @@ class TSEPlot(object):
                     height = high - low
 
                     # range
-                    rectangle = patches.Rectangle((tse.x[start], low), tse.x[end], high - low)
+                    rectangle = patches.Rectangle((tse.x[start], low), tse.x[end - 1], high - low)
                     rectangle.set_alpha(0.20)
                     rectangle.set_color(color)
                     ax.add_patch(rectangle)
 
                     # average
-                    rectangle = patches.Rectangle((tse.x[start], average - height/50.0), tse.x[end], 2*height/50.0)
+                    rectangle = patches.Rectangle((tse.x[start], average - height/50.0), tse.x[end - 1], 2*height/50.0)
                     rectangle.set_alpha(0.4)
                     rectangle.set_color(color)
                     ax.add_patch(rectangle)
@@ -320,11 +341,24 @@ class TSEPlot(object):
                 else:
                     min_ = tse.y.min()
 
-                ax.set_ylim([min_ - abs(min_*0.1), max_ + abs(max_*0.1)])
+                if not plottable.get('unix'):
+                    ax.set_ylim([min_ - abs(min_*0.1), max_ + abs(max_*0.1)])
+                else:
+                    if not grand_high or max_ > grand_high:
+                        grand_high = max_
+                    if not grand_low or min_ < grand_low:
+                        grand_low = min_
+
+            if plottable.get('unix'):
+                ax.set_ylim(grand_low, grand_high)
 
             # do triggers!
             for trigger in plottable['trigger']:
                 for time in trigger.times:
+                    # adjust for smoothing (both ends have been cut)
+                    smoothing_length = tse.smoothing_filter_length
+                    time = int(time - smoothing_length / 2)
+                    
                     # this comparison is in samples
                     if time >= start and time < end:
                         # this x is in seconds
@@ -358,33 +392,64 @@ if __name__ == '__main__':
 
         return intervals
 
-    subject = 'KH009'
-    plottables = [
-        {
-            'title': 'many bands at Oz',
-            'tse': [
-                PlottableTSE(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], color='Blue', title='alpha'),  # noqa
-                PlottableTSE(FILES[subject]['med'], BANDS['theta'], CHANNELS['Oz'], color='Red', title='theta'),  # noqa
-                PlottableTSE(FILES[subject]['med'], BANDS['beta'], CHANNELS['Oz'], color='Green', title='beta'),  # noqa
-            ],
-            'trigger': [
-                PlottableTriggers(FILES[subject]['med'])
-            ]
-        },
+    def get_trigger_tses(filename, band, channel, start, end):
+        raw = mne.io.Raw(filename, preload=True)
+        times = mne.find_events(raw)[:, 0]
 
-        {
-            'title': 'alpha Oz with ranges',
-            'tse': [
-                PlottableTSE(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], title='alpha',  # noqa
-                    ranges=[
-                        # PlottableRange(FILES[subject]['rest'], BANDS['alpha'], CHANNELS['Oz'], intervals=[(5000, 80000)], title='rest alpha range'),  # noqa
-                        PlottableRange(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], intervals=get_baseline_intervals(FILES[subject]['med']), title='meditation alpha range'),  # noqa
-                    ]
-                ), 
-            ],
-            'trigger': [
-                PlottableTriggers(FILES[subject]['med'])
-            ]
-        },
-    ]
-    stft = TSEPlot(plottables, window=32000)
+        tses = []
+
+        for time in times:
+            if time > -start and time < raw._data.shape[1] - end: 
+                tse = PlottableTSE(raw, band, channel, smoothing_filter_length=10000, color='Green', interval=(time + start, time + end))  # noqa
+                tses.append(tse)
+
+        return tses
+
+    subject = 'KH009'
+
+    def continuous():
+        continuous_plottables = [
+            {
+                'title': 'many bands at Oz',
+                'tse': [
+                    PlottableTSE(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], color='Blue', title='alpha'),  # noqa
+                    PlottableTSE(FILES[subject]['med'], BANDS['theta'], CHANNELS['Oz'], color='Red', title='theta'),  # noqa
+                    PlottableTSE(FILES[subject]['med'], BANDS['beta'], CHANNELS['Oz'], color='Green', title='beta'),  # noqa
+                ],
+                'trigger': [
+                    PlottableTriggers(FILES[subject]['med'])
+                ]
+            },
+
+            {
+                'title': 'alpha Oz with ranges',
+                'tse': [
+                    PlottableTSE(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], title='alpha',  # noqa
+                        ranges=[
+                            # PlottableRange(FILES[subject]['rest'], BANDS['alpha'], CHANNELS['Oz'], intervals=[(5000, 80000)], title='rest alpha range'),  # noqa
+                            PlottableRange(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], intervals=get_baseline_intervals(FILES[subject]['med']), title='meditation alpha range'),  # noqa
+                        ]
+                    ), 
+                ],
+                'trigger': [
+                    PlottableTriggers(FILES[subject]['med'])
+                ]
+            },
+        ]
+        TSEPlot(continuous_plottables, window=32000)
+    def trigger():
+        trigger_tses = get_trigger_tses(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], -24000, 8000)
+        trigger_plottables = [
+            {
+                'title': 'butterfly alpha',
+                'tse': trigger_tses,
+                'trigger': [
+                    PlottableCustomTriggers(times=[24000], sample_rate=1000)
+                ],
+                'unix': True,
+            }
+        ]
+        TSEPlot(trigger_plottables, window=len(trigger_tses[0].y)-1)
+
+    continuous()
+    # trigger()
