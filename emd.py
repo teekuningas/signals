@@ -32,46 +32,60 @@ def envelope(series, extrema_args):
     return interp1d(x, y, kind='cubic')
 
 
-def deviation(component1, component2):
-    return 0.2
-
-def is_monotonic(component):
-    return True
+def deviation(previous, current):
+    result = 0
+    for t in range(len(previous)):
+        result += (previous[t] - current[t])**2 / previous[t]**2
+    return result
 
 
 data = raw._data
 deviation_limit = 0.3
-start = 0
-end = 5000
+start = 10000
+end = 11000
 series = data[0][start:end]
-x = range(start, end)
+x = range(0, end - start)
 
 imfs = []
 residue = series
 
 while True:
     component = residue
+    quit = False
     while True:
-        max_env_func = extrap1d(envelope(series, argrelmax(series)[0]))
-        min_env_func = extrap1d(envelope(series, argrelmin(series)[0]))
-        max_env = max_env_func(x)
-        min_env = min_env_func(x)
+        try:
+            max_env_func = extrap1d(envelope(component, argrelmax(component)[0]))
+            min_env_func = extrap1d(envelope(component, argrelmin(component)[0]))
+            max_env = max_env_func(x)
+            min_env = min_env_func(x)
+        except:
+            quit = True
+            break
         mean_env = (max_env + min_env) / 2
+
         last_component = component
         component = component - mean_env
 
-        if deviation_limit > deviation(component, last_component):
+        dev = deviation(last_component, component)
+        if deviation_limit > dev:
+            print "Imf created"
             break
+
+    if quit:
+        break
 
     imfs.append(component)
     residue = residue - component
 
-    if is_monotonic(residue):
+    if np.all(np.diff(residue) >= 0):
         break
 
-# plt.plot(x, max_env)
-# plt.plot(x, min_env)
-# plt.plot(x, mean_env)
-# plt.show()
+fig, axarray = plt.subplots(len(imfs) + 1)
+for idx, ax in enumerate(axarray):
+    if idx == 0:
+        ax.plot(series)
+    else:
+        ax.plot(imfs[idx - 1])
+plt.show()
 
 print "miau"
