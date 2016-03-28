@@ -13,6 +13,7 @@ FILES = {
             'med': '/home/zairex/Code/cibr/data/gradudemo/KH002_MED-pre.fif',
             'rest': '/home/zairex/Code/cibr/data/gradudemo/KH002_EOEC-pre.fif'
         },
+    # experienced
     'KH009':
         {
             'med': '/home/zairex/Code/cibr/data/gradudemo/KH009_MED-pre.fif',
@@ -296,10 +297,19 @@ class TSEPlot(object):
                     self.fig.subplots_adjust(right=0.85 - 0.1*(j-2))
                     ax.set_frame_on(True)
                     ax.patch.set_visible(False)
-                temp_x = tse.x[start:end]
+                if plottable.get('move_x'):
+                    xscale = float(plottable['move_x']) / 1000
+                    temp_x = tse.x[start:end] + xscale
+                else:
+                    temp_x = tse.x[start:end]
                 temp_y = tse.y[start:end]
                 ax.plot(temp_x, temp_y, color=tse.color)
-                ax.set_xlim([tse.x[start], tse.x[end - 1]])
+                if plottable.get('move_x'):
+                    xscale = float(plottable['move_x']) / 1000
+                    # TODO: sfreq
+                    ax.set_xlim([tse.x[start] + xscale, tse.x[end - 1] + xscale])
+                else:
+                    ax.set_xlim([tse.x[start], tse.x[end - 1]])
                 ax.set_ylabel(tse.title, color=tse.color)
                 ax.tick_params(axis='y', colors=tse.color)
                 ax.ticklabel_format(style='plain')
@@ -355,14 +365,15 @@ class TSEPlot(object):
             # do triggers!
             for trigger in plottable['trigger']:
                 for time in trigger.times:
-                    # adjust for smoothing (both ends have been cut)
-                    smoothing_length = tse.smoothing_filter_length
-                    time = int(time - smoothing_length / 2)
                     
                     # this comparison is in samples
                     if time >= start and time < end:
                         # this x is in seconds
-                        patch_x = float(time) / trigger.sample_rate
+                        if plottable.get('move_x'):
+                            xscale = float(plottable['move_x']) / 1000
+                            patch_x = float(time) / trigger.sample_rate + xscale
+                        else:
+                            patch_x = float(time) / trigger.sample_rate
                         patch_width = 0.2
                         orig_ax.add_patch(
                             patches.Rectangle((patch_x - patch_width/2, 0), 
@@ -405,16 +416,16 @@ if __name__ == '__main__':
 
         return tses
 
-    subject = 'KH009'
+    subject = 'KH005'
 
     def continuous():
         continuous_plottables = [
             {
                 'title': 'many bands at Oz',
                 'tse': [
-                    PlottableTSE(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], color='Blue', title='alpha'),  # noqa
-                    PlottableTSE(FILES[subject]['med'], BANDS['theta'], CHANNELS['Oz'], color='Red', title='theta'),  # noqa
-                    PlottableTSE(FILES[subject]['med'], BANDS['beta'], CHANNELS['Oz'], color='Green', title='beta'),  # noqa
+                    PlottableTSE(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Fz'], color='Blue', title='alpha'),  # noqa
+                    PlottableTSE(FILES[subject]['med'], BANDS['theta'], CHANNELS['Fz'], color='Red', title='theta'),  # noqa
+                    PlottableTSE(FILES[subject]['med'], BANDS['beta'], CHANNELS['Fz'], color='Green', title='beta'),  # noqa
                 ],
                 'trigger': [
                     PlottableTriggers(FILES[subject]['med'])
@@ -422,34 +433,41 @@ if __name__ == '__main__':
             },
 
             {
-                'title': 'alpha Oz with ranges',
+                'title': 'alpha Oz and Fz with Oz range',
                 'tse': [
-                    PlottableTSE(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], title='alpha',  # noqa
+                    PlottableTSE(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Fz'], title='alpha Fz', color='Green',
                         ranges=[
-                            # PlottableRange(FILES[subject]['rest'], BANDS['alpha'], CHANNELS['Oz'], intervals=[(5000, 80000)], title='rest alpha range'),  # noqa
-                            PlottableRange(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], intervals=get_baseline_intervals(FILES[subject]['med']), title='meditation alpha range'),  # noqa
+                            PlottableRange(FILES[subject]['rest'], BANDS['alpha'], CHANNELS['Fz'], intervals=[(5000, 80000)], title='rest alpha range', color='Green'),  # noqa
+                        ]
+                    ),
+                    PlottableTSE(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], title='alpha Oz',  # noqa
+                        ranges=[
+                            PlottableRange(FILES[subject]['rest'], BANDS['alpha'], CHANNELS['Oz'], intervals=[(5000, 80000)], title='rest alpha range'),  # noqa
                         ]
                     ), 
                 ],
                 'trigger': [
                     PlottableTriggers(FILES[subject]['med'])
-                ]
+                ],
+                'unix': True,
             },
         ]
         TSEPlot(continuous_plottables, window=32000)
     def trigger():
         trigger_tses = get_trigger_tses(FILES[subject]['med'], BANDS['alpha'], CHANNELS['Oz'], -24000, 8000)
+        tse_length = len(trigger_tses[0].y)
         trigger_plottables = [
             {
                 'title': 'butterfly alpha',
                 'tse': trigger_tses,
                 'trigger': [
-                    PlottableCustomTriggers(times=[24000], sample_rate=1000)
+                    PlottableCustomTriggers(times=[3.0*tse_length/4], sample_rate=1000)
                 ],
                 'unix': True,
+                'move_x': -len(trigger_tses[0].y) * (3.0/4),
             }
         ]
-        TSEPlot(trigger_plottables, window=len(trigger_tses[0].y)-1)
+        TSEPlot(trigger_plottables, window=tse_length-1)
 
-    continuous()
-    # trigger()
+    # continuous()
+    trigger()
