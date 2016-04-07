@@ -7,8 +7,6 @@ import mne
 
 from mne.time_frequency.stft import stft
 
-from sklearn.decomposition import PCA
-
 
 class FourierICA(object):
 
@@ -20,26 +18,20 @@ class FourierICA(object):
 
     Parameters
     ----------
-    n_components : int | float | None
-        The number of components used for ICA decomposition. If int, it must be
-        smaller then max_pca_components. If None, all PCA components will be
-        used. If float between 0 and 1 components can will be selected by the
-        cumulative percentage of explained variance.
-    max_pca_components : int | None
-        The number of components used for PCA decomposition. If None, no
-        dimension reduction will be applied and max_pca_components will equal
-        the number of channels supplied on decomposing data. Defaults to None.
+    ...
     """
 
     def __init__(self, wsize, sfreq, tstep=None, n_ica_components=None, n_pca_components=None, 
-                 zerotolerance=1e-14, lpass=1, hpass=80):
+                 conveps=1e-7, maxiter=None, zerotolerance=None):
         self.wsize = wsize
         self.tstep = tstep
         self.n_pca_components = n_pca_components
         self.n_ica_components = n_ica_components
-        self.lpass = lpass
-        self.hpass = hpass
         self.zerotolerance = zerotolerance
+        self.maxiter = maxiter
+        self.conveps = conveps
+        if not zerotolerance:
+            self.zerotolerance = conveps
 
     def fit(self, data):
         """ Fit data
@@ -54,58 +46,117 @@ class FourierICA(object):
         """
         # first do stft
         stft_ = stft(data, self.wsize, self.tstep)
+
         # remove outliers
+        pass
 
         # concatenate ft's to have two-dimensional data for ica
         fts = [stft_[:, :, idx] for idx in range(stft_.shape[2])]
         data2d = np.concatenate(fts, axis=1)
 
+        # whiten the data
         whitened = self._whiten(data2d)
 
-        import pdb; pdb.set_trace()
-
         # do ica
-
-        # sort components
+        components = self._fastica(whitened)
 
     def apply(self):
         pass
 
+    def _fastica(self, data):
+        """ 
+        deflationary complex ica depcited from
+        (Bingham and Hyvarinen, 2000)
+        """
+
+        if self.maxiter:
+            maxiter = self.maxiter
+        else:
+            maxiter = max(40*self.n_pca_components, 2000)
+
+        mixing_ = np.zeros((self.n_ica_components, self.n_pca_components), 
+                           dtype=data.dtype)
+        x = data
+
+        for i in range(self.n_ica_components):
+
+            # initial point, make it imaginary and length one
+            r_ = np.random.randn(self.n_pca_components)
+            i_ = np.random.randn(self.n_pca_components)
+            w_old = r_ + 1j * i_
+            w_old = w_old / np.linalg.norm(w_old)
+
+            for j in range(maxiter/self.n_ica_components):
+
+                # compute things
+                y_ = np.dot(np.conj(w_old.T), x)
+                g_ = np.log(1 + np.abs(y_)**2)
+                dg_ = 1.0 / (1 + np.abs(y_)**2)
+                first = np.mean(x*np.conj(y_)*g_, axis=1)
+                second = np.mean(g_ + (np.abs(y_)**2)*dg_)*w_old
+
+                # fixed-point iteration
+                w_ = first - second
+
+                # decorrelate
+                projections = np.zeros(w_.shape)
+                for k in range(i):
+                    projections += np.dot(np.dot(mixing_[k], 
+                                                 np.conj(mixing_[k].T), w_))
+                w_ -= projections
+
+                # renormalize
+                w_ = w_ / np.linalg.norm(w_)
+
+                # check if converged
+                print w_
+
+                # store old value
+                w_old = w_
+
+            mixing_[i, :] = w_
+
+        return mixing_
+
     def _whiten(self, data):
-        """ Whiten data with PCA
+        """
+        Whiten data with PCA
+
         """
 
         # substract mean value from channels
         mean_ = data.mean(axis=-1)
         data -= mean_[:, np.newaxis]
+        self.mean_ = mean_
 
         # calculate eigenvectors and eigenvalues from covariance matrix
         covmat = np.cov(data)
-        covmat = np.conj(covmat)
         eigw, eigv = np.linalg.eigh(covmat)
 
         # filter out components that are too small (or even negative)
-        valids = np.where(eigw > self.zerotolerance)[0]
+        valids = np.where(eigw/eigw[-1] > self.zerotolerance)[0]
         eigw = eigw[valids]
         eigv = eigv[:, valids]
 
-        # adjust number of copmonents
+        # adjust number of components
         n_pca_components = self.n_pca_components
         if not n_pca_components:
             n_pca_components = len(valids)
         elif n_pca_components > len(valids):
             n_pca_components = len(valids)
+        self.n_pca_components = n_pca_components
 
         # sort in descending order and take only n_pca_components of components
         eigw = eigw[::-1][0:n_pca_components]
         eigv = eigv[:, ::-1][:, 0:n_pca_components]
 
-        # construct whitening and dewhitening matrices
+        # construct whitening matrix
         dsqrt = np.sqrt(eigw)
         dsqrtinv = 1.0/dsqrt
-        self.whitening = np.dot(np.diag(dsqrtinv), eigv.T)
-        self.dewhitening = np.dot(eigv, np.diag(dsqrt))
+        whitening = np.dot(np.diag(dsqrtinv), np.conj(eigv.T))
 
         # whiten the data
-        whitened = np.dot(self.whitening, data)
+        whitened = np.dot(whitening, data)
+
         return whitened
+
