@@ -9,7 +9,7 @@ class DifferencePlot:
     """
 
     def __init__(self, datasets, ch_names=None, x=0, y=0, x_range=None,
-                 window_width=2500, window_height=3):
+                 window_width=2500, window_height=3, scaletype=None):
         if len(set([dataset.shape for dataset in datasets])) != 1:
             raise Exception("Dataset shapes must be identical")
 
@@ -18,6 +18,7 @@ class DifferencePlot:
         self.ch_names = ch_names
         self.x = x
         self.y = y
+        self.scaletype = scaletype
 
         # pad with zeros
         padded_datasets = []
@@ -47,6 +48,15 @@ class DifferencePlot:
             width = self.window_width
             left = (self.x * width) % self.datasets[0].shape[1]
 
+            max_y, min_y = None, None
+            for dataset in self.datasets:
+                data = dataset[real_channel]
+                if not max_y or max(data) > max_y:
+                    max_y = max(data)
+
+                if not min_y or min(data) < min_y:
+                    min_y = min(data)
+
             ax = self.figure.add_subplot(self.window_height, 1, channel + 1)
 
             if self.ch_names:
@@ -60,6 +70,11 @@ class DifferencePlot:
             else:
                 ax.set_xlim([left, left + width])
                 x_range = range(left, left + width)
+
+            if self.scaletype:
+                ax.set_yscale(self.scaletype)
+            
+            ax.set_ylim([min_y, max_y])
 
             for dataset in self.datasets:
                 data = dataset[real_channel]

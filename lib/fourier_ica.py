@@ -47,11 +47,9 @@ class FourierICA(object):
         ------
 
         """
-        self.sensor_time_components = np.copy(data)
 
         # first do stft
         stft_ = stft(data, self.wsize, self.tstep)
-        self._stft_timepoints = stft_.shape[2]
 
         # bandpass filter
         if self.sfreq:
@@ -65,8 +63,17 @@ class FourierICA(object):
 
             stft_ = stft_[:, hpass:lpass, :]
 
-        self.sensor_stft_components = stft_
+        # remove outliers
+        # laps = []
+        # for i in range(stft_.shape[2]):
+        #     laps.append(np.log(np.linalg.norm(stft_[:, :, i])))
+        # threshold = np.mean(laps) + np.std(laps)
+        # valids = np.where(laps < threshold)[0]
+        # stft_ = stft_[:, :, valids]
 
+        self._stft_timepoints = stft_.shape[2]
+
+        # concatenate data 
         data2d = self._concat(stft_)
 
         # whiten the data
