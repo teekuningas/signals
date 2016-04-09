@@ -6,6 +6,7 @@ import numpy as np
 import mne
 
 from mne.time_frequency.stft import stft
+from mne.time_frequency.stft import stftfreq
 
 
 class FourierICA(object):
@@ -21,17 +22,19 @@ class FourierICA(object):
     ...
     """
 
-    def __init__(self, wsize, sfreq, tstep=None, n_ica_components=None, n_pca_components=None, 
-                 conveps=1e-7, maxiter=None, zerotolerance=None):
+    def __init__(self, wsize, n_pca_components, n_ica_components=None,
+                 tstep=None, conveps=None, maxiter=None, zerotolerance=None, 
+                 lpass=None, hpass=None, sfreq=None):
         self.wsize = wsize
-        self.tstep = tstep
         self.n_pca_components = n_pca_components
         self.n_ica_components = n_ica_components
-        self.zerotolerance = zerotolerance
-        self.maxiter = maxiter
+        self.tstep = tstep
         self.conveps = conveps
-        if not zerotolerance:
-            self.zerotolerance = conveps
+        self.maxiter = maxiter
+        self.zerotolerance = zerotolerance
+        self.lpass = lpass
+        self.hpass = hpass
+        self.sfreq = sfreq
 
     def fit(self, data):
         """ Fit data
@@ -44,23 +47,36 @@ class FourierICA(object):
         ------
 
         """
+        self.sensor_time_components = np.copy(data)
+
         # first do stft
         stft_ = stft(data, self.wsize, self.tstep)
+        self._stft_timepoints = stft_.shape[2]
 
-        # remove outliers
-        pass
+        # bandpass filter
+        if self.sfreq:
+            freqs = stftfreq(self.wsize, self.sfreq)
 
-        # concatenate ft's to have two-dimensional data for ica
-        fts = [stft_[:, :, idx] for idx in range(stft_.shape[2])]
-        data2d = np.concatenate(fts, axis=1)
+            hpass, lpass = 0, len(freqs)
+            if self.hpass:
+                hpass = min(np.where(freqs >= self.hpass)[0])
+            if self.lpass:
+                lpass = max(np.where(freqs <= self.lpass)[0])
+
+            stft_ = stft_[:, hpass:lpass, :]
+
+        self.sensor_stft_components = stft_
+
+        data2d = self._concat(stft_)
 
         # whiten the data
         whitened = self._whiten(data2d)
 
         # do ica
-        components = self._fastica(whitened)
+        self.source_stft_components = self._split(self._fastica(whitened))
 
-    def apply(self):
+    @property
+    def source_time_components(self):
         pass
 
     def _fastica(self, data):
@@ -74,7 +90,7 @@ class FourierICA(object):
         else:
             maxiter = max(40*self.n_pca_components, 2000)
 
-        mixing_ = np.zeros((self.n_ica_components, self.n_pca_components), 
+        W_ = np.zeros((self.n_pca_components, self.n_ica_components), 
                            dtype=data.dtype)
         x = data
 
@@ -99,24 +115,22 @@ class FourierICA(object):
                 w_ = first - second
 
                 # decorrelate
-                projections = np.zeros(w_.shape)
+                projections = np.zeros(w_.shape, dtype=w_.dtype)
                 for k in range(i):
-                    projections += np.dot(np.dot(mixing_[k], 
-                                                 np.conj(mixing_[k].T), w_))
+                    projections += np.dot(W_[:, k], np.dot(np.conj(W_[:, k].T), w_))
                 w_ -= projections
 
                 # renormalize
                 w_ = w_ / np.linalg.norm(w_)
 
                 # check if converged
-                print w_
 
                 # store old value
                 w_old = w_
 
-            mixing_[i, :] = w_
+            W_[:, i] = w_
 
-        return mixing_
+        return np.dot(np.conj(W_).T, x)
 
     def _whiten(self, data):
         """
@@ -134,6 +148,8 @@ class FourierICA(object):
         eigw, eigv = np.linalg.eigh(covmat)
 
         # filter out components that are too small (or even negative)
+        if not self.zerotolerance:
+            self.zerotolerance = 1e-15
         valids = np.where(eigw/eigw[-1] > self.zerotolerance)[0]
         eigw = eigw[valids]
         eigv = eigv[:, valids]
@@ -160,3 +176,21 @@ class FourierICA(object):
 
         return whitened
 
+    def _concat(self, data):
+        # concatenate ft's to have two-dimensional data for ica
+        fts = [data[:, :, idx] for idx in range(data.shape[2])]
+        data2d = np.concatenate(fts, axis=1)
+        return data2d
+
+    def _split(self, data):
+        parts = np.split(data, self._stft_timepoints, axis=1)
+
+        xw = data.shape[0]
+        yw = data.shape[1]/self._stft_timepoints
+        zw = self._stft_timepoints
+
+        splitted = np.empty((xw, yw, zw), dtype=data.dtype)
+        for idx, part in enumerate(parts):
+            splitted[:, :, idx] = part
+
+        return splitted
