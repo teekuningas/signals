@@ -10,6 +10,7 @@ class DifferencePlot:
 
     def __init__(self, datasets, ch_names=None, x=0, y=0, x_range=None,
                  window_width=2500, window_height=3, scaletype=None):
+
         if len(set([dataset.shape for dataset in datasets])) != 1:
             raise Exception("Dataset shapes must be identical")
 
@@ -33,7 +34,6 @@ class DifferencePlot:
             self.x_range = np.interp(range(self.datasets[0].shape[1]), range(len(x_range)), x_range)
         else:
             self.x_range = x_range
-
 
         self.figure = plt.figure()
         self.plot_window()

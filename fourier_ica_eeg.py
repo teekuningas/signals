@@ -16,8 +16,7 @@ if __name__ == '__main__':
                       sfreq=1000, hpass=5, lpass=20)
     fica.fit(raw._data)
 
-    source_stft = fica.source_stft_components
-    source_time = fica.source_time_components
+    freqs, source_stft = fica.source_stft
 
     data = np.abs(fica._concat(source_stft))
 

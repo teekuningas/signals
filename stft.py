@@ -6,13 +6,13 @@ import mne
 from lib.stft import STFTPlot
 
 # raw = mne.io.Raw('/home/zairex/Code/cibr/demo/MI_KH009_MED-bads-raw-pre.fif', preload=True)
-raw = mne.io.Raw('/home/zairex/Code/cibr/data/graduaineisto/EOEC/KH016_EOEC-raw.fif', preload=True)
+raw = mne.io.Raw('/home/zairex/Code/cibr/data/gradudemo/KH009_EOEC-pre.fif', preload=True)
 
 info = raw.info
 sfreq = info['sfreq']
-wsize = int(sfreq/2)
+wsize = 2000
 tstep = int(wsize/2)
-freq_limit = 40
+hpass, lpass = 4, 20
 channels = np.array([
     11, # middle front Fz
     75, # middle back Oz
@@ -21,6 +21,12 @@ channels = np.array([
 ]) - 1
 data = raw._data[channels]
 tfr = mne.time_frequency.stft(data, wsize, tstep)
+freqs = mne.time_frequency.stftfreq(wsize, sfreq)
 
-if __name__ == '__main__':
-    stft = STFTPlot(tfr, wsize, sfreq, tstep, freq_limit)
+# bandpass filter
+hpass_idx = min(np.where(freqs >= hpass)[0])
+lpass_idx = max(np.where(freqs <= lpass)[0])
+freqs = freqs[hpass_idx:lpass_idx]
+tfr = tfr[:, hpass_idx:lpass_idx, :]
+
+STFTPlot(freqs, tfr)

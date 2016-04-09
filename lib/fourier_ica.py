@@ -61,6 +61,8 @@ class FourierICA(object):
             if self.lpass:
                 lpass = max(np.where(freqs <= self.lpass)[0])
 
+            self._freqs = freqs[hpass:lpass]
+
             stft_ = stft_[:, hpass:lpass, :]
 
         # remove outliers
@@ -80,11 +82,11 @@ class FourierICA(object):
         whitened = self._whiten(data2d)
 
         # do ica
-        self.source_stft_components = self._split(self._fastica(whitened))
+        self._source_stft = self._split(self._fastica(whitened))
 
     @property
-    def source_time_components(self):
-        pass
+    def source_stft(self):
+        return self._freqs, self._source_stft
 
     def _fastica(self, data):
         """ 

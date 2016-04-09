@@ -5,63 +5,76 @@ import mne
 
 class STFTPlot():
 
-    def __init__(self, tfr, wsize, sfreq, tstep, freq_limit, ch_names=None):
+    def __init__(self, freqs, tfr, window_width=50, window_height=3, 
+                 ch_names=None):
         self.tfr = tfr
-        self.x = np.arange(0, self.tfr.shape[2]*tstep, tstep) / sfreq
-        self.y = mne.time_frequency.stftfreq(wsize, sfreq)
-        self.plot_window = 100
-        self.position = 0
+        self.window_width = window_width
+        self.window_height = window_height
+        self.x = 0
+        self.y = 0
         self.ch_names = ch_names
 
-        # find index for frequency limit
-        self.freq_idx = int(self.y.shape[0] / ((sfreq / 2) / freq_limit))
+        # pad with average
+        residue = tfr.shape[2] % window_width
+        average_ = np.average(tfr.flatten())
+        fill_matrix = np.empty((tfr.shape[0], tfr.shape[1], 
+                                window_width - residue), dtype=tfr.dtype)
+        fill_matrix.fill(average_)
+        self.tfr = np.concatenate([tfr, fill_matrix], axis=2)
 
-        try:
-            self.triggers = mne.find_events(raw)[:, 0]
-        except:
-            self.triggers = []
+        self.y_values = freqs
+        self.x_values = np.arange(self.tfr.shape[2])
 
-        fig, self.axarray = plt.subplots(2,2)
-        key_release_cid = fig.canvas.mpl_connect('key_release_event', 
-                                                 self.on_key_release)
-        self.plot_tfr(self.position, self.plot_window)
-        # self.plot_window(0, len(self.x))
+        self.fig = plt.figure()
+        self.plot_window()
+        key_release_cid = self.fig.canvas.mpl_connect('key_release_event', 
+                                                      self.on_key_release)
         plt.show()
 
     def on_key_release(self, event):
         if event.key == 'left':
-            if self.position - self.plot_window >= 0:
-                self.position = self.position - self.plot_window
-            else:
-                self.position = 0
-        if event.key == 'right':
-            if self.position + 2*self.plot_window < len(self.x):
-                self.position = self.position + self.plot_window
-            else:
-                self.position = len(self.x) - self.plot_window - 1
+            self.x = self.x - 1
+        elif event.key == 'right':
+            self.x = self.x + 1
+        elif event.key == 'up':
+            self.y = self.y - 1
+        elif event.key == 'down':
+            self.y = self.y + 1
         
-        self.plot_tfr(self.position, self.position + self.plot_window)
+        self.plot_window()
 
-    def plot_tfr(self, start, end):
-        for i in range(self.axarray.shape[0]):
-            for j in range(self.axarray.shape[1]):
-                self.axarray[i, j].clear()
+    def plot_window(self):
+        self.fig.clear()
 
-        for idx in range(self.tfr.shape[0]):
-            temp_x = self.x[start:end]
-            temp_y = self.y[:self.freq_idx]
-            temp_z = self.tfr[idx][:self.freq_idx, start:end]
+        for idx in range(self.window_height):
+            real_idx = (self.y + idx) % self.tfr.shape[0]
+            width = self.window_width
+            height = self.window_height
+            start = (self.x * width) % self.tfr.shape[2]
+            end = start + width
 
-            ax = self.axarray[idx%2, idx/2]
+            temp_x = self.x_values[start:end]
+            temp_y = self.y_values
+            temp_z = np.abs(self.tfr[real_idx][:, start:end])
+
+            ax = self.fig.add_subplot(height, 1, idx + 1)
+
             if self.ch_names:
                 ax.set_title(str(self.ch_names[idx]))
-            ax.pcolormesh(temp_x, temp_y, 10 * np.log10(temp_z))
-            ax.axis('tight')
 
-            for trigger in self.triggers:
-                patch_x = float((trigger - self.x[start])) / sfreq
-                ax.add_patch(
-                    patches.Rectangle((patch_x, 0), 0.3, freq_limit/4))
+            # find min and max values for colors
+            vvalues = 10 * np.log10(np.abs(self.tfr[real_idx].flatten()))
+            vmax = max(vvalues)
+            vmin = min(vvalues)
+
+            # ax.pcolormesh(temp_x, temp_y, 10 * np.log10(temp_z), 
+            #               vmin=vmin, vmax=vmax, shading='gouraud')
+            ax.imshow(10 * np.log10(temp_z), vmin=vmin, vmax=vmax,
+                      extent=[temp_x.min(), temp_x.max(), 
+                              temp_y.min(), temp_y.max()],
+                      interpolation='hanning', origin='lower')
+
+            ax.axis('tight')
 
         plt.draw()
 
