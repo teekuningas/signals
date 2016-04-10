@@ -60,19 +60,23 @@ class STFTPlot():
             ax = self.fig.add_subplot(height, 1, idx + 1)
 
             if self.ch_names:
-                ax.set_title(str(self.ch_names[idx]))
+                ax.set_title(str(self.ch_names[real_idx]))
 
             # find min and max values for colors
             vvalues = 10 * np.log10(np.abs(self.tfr[real_idx].flatten()))
+            # vvalues = np.abs(self.tfr[real_idx].flatten())
             vmax = max(vvalues)
-            vmin = min(vvalues)
+            # vmin = min(vvalues)
+            vmin = np.average(vvalues)
 
             # ax.pcolormesh(temp_x, temp_y, 10 * np.log10(temp_z), 
             #               vmin=vmin, vmax=vmax, shading='gouraud')
+            # ax.imshow(temp_z, vmin=vmin, vmax=vmax,
             ax.imshow(10 * np.log10(temp_z), vmin=vmin, vmax=vmax,
                       extent=[temp_x.min(), temp_x.max(), 
                               temp_y.min(), temp_y.max()],
-                      interpolation='hanning', origin='lower')
+                      interpolation='nearest', origin='lower',
+                      cmap='OrRd',)
 
             ax.axis('tight')
 

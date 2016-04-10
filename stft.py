@@ -12,14 +12,14 @@ info = raw.info
 sfreq = info['sfreq']
 wsize = 2000
 tstep = int(wsize/2)
-hpass, lpass = 4, 20
-channels = np.array([
-    11, # middle front Fz
-    75, # middle back Oz
-    108, # middle right T3
-    45, # middle left T4
-]) - 1
-data = raw._data[channels]
+hpass, lpass = 1, 30
+channels = {
+    'Fz': 11,
+    'Oz': 75,
+    'T3': 108,
+    'T4': 45
+}
+data = raw._data[np.array(channels.values()) - 1]
 tfr = mne.time_frequency.stft(data, wsize, tstep)
 freqs = mne.time_frequency.stftfreq(wsize, sfreq)
 
@@ -29,4 +29,4 @@ lpass_idx = max(np.where(freqs <= lpass)[0])
 freqs = freqs[hpass_idx:lpass_idx]
 tfr = tfr[:, hpass_idx:lpass_idx, :]
 
-STFTPlot(freqs, tfr)
+STFTPlot(freqs, tfr, ch_names=channels.keys())
