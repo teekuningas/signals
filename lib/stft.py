@@ -6,13 +6,15 @@ import mne
 class STFTPlot():
 
     def __init__(self, freqs, tfr, window_width=50, window_height=3, 
-                 ch_names=None):
+                 ch_names=None, ignore_times=None, triggers=[]):
         self.tfr = tfr
         self.window_width = window_width
         self.window_height = window_height
         self.x = 0
         self.y = 0
         self.ch_names = ch_names
+        self.triggers = triggers
+        self.ignore_times = ignore_times
 
         # pad with average
         residue = tfr.shape[2] % window_width
@@ -63,15 +65,15 @@ class STFTPlot():
                 ax.set_title(str(self.ch_names[real_idx]))
 
             # find min and max values for colors
-            vvalues = 10 * np.log10(np.abs(self.tfr[real_idx].flatten()))
-            # vvalues = np.abs(self.tfr[real_idx].flatten())
+            tfr_ = self.tfr[real_idx]
+            if self.ignore_times:
+                tfr_ = np.delete(tfr_, self.ignore_times, axis=1)
+                
+            vvalues = 10 * np.log10(np.abs(tfr_.flatten()))
+
             vmax = max(vvalues)
-            # vmin = min(vvalues)
             vmin = np.average(vvalues)
 
-            # ax.pcolormesh(temp_x, temp_y, 10 * np.log10(temp_z), 
-            #               vmin=vmin, vmax=vmax, shading='gouraud')
-            # ax.imshow(temp_z, vmin=vmin, vmax=vmax,
             ax.imshow(10 * np.log10(temp_z), vmin=vmin, vmax=vmax,
                       extent=[temp_x.min(), temp_x.max(), 
                               temp_y.min(), temp_y.max()],
@@ -79,6 +81,12 @@ class STFTPlot():
                       cmap='OrRd',)
 
             ax.axis('tight')
+
+            for trigger in self.triggers:
+                patch_width = 0.2
+                ax.add_patch(patches.Rectangle((trigger - patch_width/2, 0),
+                                               patch_width, 10))
+
 
         plt.draw()
 
