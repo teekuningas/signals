@@ -48,7 +48,7 @@ class FourierICA(object):
 
         """
 
-        # first do stft
+        print "First do stft"
         stft_ = stft(data, self.wsize, self.tstep)
 
         # bandpass filter
@@ -73,15 +73,16 @@ class FourierICA(object):
         # valids = np.where(laps < threshold)[0]
         # stft_ = stft_[:, :, valids]
 
-        self._stft_timepoints = stft_.shape[2]
+        # store shape to retrieve it later
+        self._stft_shape = stft_.shape
 
         # concatenate data 
         data2d = self._concat(stft_)
 
-        # whiten the data
+        print "Whiten the data"
         whitened = self._whiten(data2d)
 
-        # do ica
+        print "Do ICA!"
         self._source_stft = self._split(self._fastica(whitened))
 
     @property
@@ -90,28 +91,39 @@ class FourierICA(object):
 
     def _fastica(self, data):
         """ 
-        deflationary complex ica depcited from
+        Deflationary complex ica depcited from
         (Bingham and Hyvarinen, 2000)
         """
 
         if self.maxiter:
             maxiter = self.maxiter
         else:
-            maxiter = max(40*self.n_pca_components, 2000)
+            maxiter = 10000
+
+        if self.conveps:
+            conveps = self.conveps
+        else:
+            conveps = 1e-13
 
         W_ = np.zeros((self.n_pca_components, self.n_ica_components), 
                            dtype=data.dtype)
         x = data
+        iterations = 0
 
-        for i in range(self.n_ica_components):
-
+        counter = 0
+        while counter < range(self.n_ica_components):
             # initial point, make it imaginary and length one
             r_ = np.random.randn(self.n_pca_components)
             i_ = np.random.randn(self.n_pca_components)
             w_old = r_ + 1j * i_
             w_old = w_old / np.linalg.norm(w_old)
 
-            for j in range(maxiter/self.n_ica_components):
+            converged = False
+
+            print "."
+
+            for j in range(maxiter):
+                iterations += 1
 
                 # compute things
                 y_ = np.dot(np.conj(w_old.T), x)
@@ -125,7 +137,7 @@ class FourierICA(object):
 
                 # decorrelate
                 projections = np.zeros(w_.shape, dtype=w_.dtype)
-                for k in range(i):
+                for k in range(counter):
                     projections += np.dot(W_[:, k], np.dot(np.conj(W_[:, k].T), w_))
                 w_ -= projections
 
@@ -134,10 +146,27 @@ class FourierICA(object):
 
                 # check if converged
 
+                lim = np.abs(np.abs((w_ * np.conj(w_old)).sum()) - 1)
+                if lim < conveps:
+                     converged = True
+                     break
+
                 # store old value
                 w_old = w_
 
-            W_[:, i] = w_
+            if converged:
+                W_[:, counter] = w_
+                counter += 1
+
+            if counter >= self.n_ica_components or iterations > maxiter:
+                break
+        
+        message = ''.join([
+            str(counter), ' components found with ',
+            str(iterations) + ' iterations!'
+            
+        ])
+        print message
 
         return np.dot(np.conj(W_).T, x)
 
@@ -192,11 +221,11 @@ class FourierICA(object):
         return data2d
 
     def _split(self, data):
-        parts = np.split(data, self._stft_timepoints, axis=1)
+        parts = np.split(data, self._stft_shape[2], axis=1)
 
         xw = data.shape[0]
-        yw = data.shape[1]/self._stft_timepoints
-        zw = self._stft_timepoints
+        yw = data.shape[1]/self._stft_shape[2]
+        zw = self._stft_shape[2]
 
         splitted = np.empty((xw, yw, zw), dtype=data.dtype)
         for idx, part in enumerate(parts):
