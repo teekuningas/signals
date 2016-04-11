@@ -11,8 +11,8 @@ if __name__ == '__main__':
     raw = mne.io.Raw('/home/zairex/Code/cibr/data/gradudemo/KH005_EOEC-pre.fif',
                      preload=True)
 
-    fica = FourierICA(wsize=2000, n_pca_components=20, 
-                      n_ica_components=8,
+    fica = FourierICA(wsize=2000, n_pca_components=40, 
+                      n_ica_components=15,
                       sfreq=1000, hpass=5, lpass=20)
     fica.fit(raw._data)
 
@@ -22,4 +22,4 @@ if __name__ == '__main__':
 
     components = DifferencePlot([data],
                                 ch_names=[str(i) for i in range(len(data))],
-                                window_width=1000, window_height=2)
+                                window_width=1000, window_height=5)
