@@ -65,14 +65,6 @@ class FourierICA(object):
 
             stft_ = stft_[:, hpass:lpass, :]
 
-        # remove outliers
-        # laps = []
-        # for i in range(stft_.shape[2]):
-        #     laps.append(np.log(np.linalg.norm(stft_[:, :, i])))
-        # threshold = np.mean(laps) + np.std(laps)
-        # valids = np.where(laps < threshold)[0]
-        # stft_ = stft_[:, :, valids]
-
         # store shape to retrieve it later
         self._stft_shape = stft_.shape
 
@@ -83,11 +75,25 @@ class FourierICA(object):
         whitened = self._whiten(data2d)
 
         print "Do ICA!"
-        self._source_stft = self._split(self._fastica(whitened))
+        ic_ = self._fastica(whitened)
+
+        # sort according to objective value
+        objectives = []
+        for i in range(ic_.shape[0]):
+            component = ic_[i, :]
+            g_ = np.log(1 + np.abs(component)**2)
+            objectives.append(np.mean(g_))
+        indices = np.argsort(objectives)[::-1]
+        sorted_ic = ic_[np.argsort(objectives), :]
+
+        self._source_stft = self._split(sorted_ic)
 
     @property
     def source_stft(self):
         return self._freqs, self._source_stft
+
+    def component_in_sensor_space(self, idx):
+        pass
 
     def _fastica(self, data):
         """ 
@@ -98,15 +104,16 @@ class FourierICA(object):
         if self.maxiter:
             maxiter = self.maxiter
         else:
-            maxiter = 10000
+            maxiter = 5000 * self.n_ica_components
 
         if self.conveps:
             conveps = self.conveps
         else:
             conveps = 1e-13
 
-        W_ = np.zeros((self.n_pca_components, self.n_ica_components), 
+        W_ = np.zeros((self.n_pca_components, 0), 
                            dtype=data.dtype)
+
         x = data
         iterations = 0
 
@@ -122,7 +129,7 @@ class FourierICA(object):
 
             print "."
 
-            for j in range(maxiter):
+            for j in range(maxiter / self.n_ica_components):
                 iterations += 1
 
                 # compute things
@@ -145,7 +152,6 @@ class FourierICA(object):
                 w_ = w_ / np.linalg.norm(w_)
 
                 # check if converged
-
                 lim = np.abs(np.abs((w_ * np.conj(w_old)).sum()) - 1)
                 if lim < conveps:
                      converged = True
@@ -155,7 +161,7 @@ class FourierICA(object):
                 w_old = w_
 
             if converged:
-                W_[:, counter] = w_
+                W_ = np.append(W_, w_[:, np.newaxis], axis=1)
                 counter += 1
 
             if counter >= self.n_ica_components or iterations > maxiter:
