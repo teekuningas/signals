@@ -17,10 +17,12 @@ class STFTPlot():
         self.ignore_times = ignore_times
 
         # pad with average
-        residue = tfr.shape[2] % window_width
+        self.residue = tfr.shape[2] % window_width or window_width
+        
         average_ = np.average(tfr.flatten())
         fill_matrix = np.empty((tfr.shape[0], tfr.shape[1], 
-                                window_width - residue), dtype=tfr.dtype)
+                                window_width - self.residue), 
+                               dtype=tfr.dtype)
         fill_matrix.fill(average_)
         self.tfr = np.concatenate([tfr, fill_matrix], axis=2)
 
@@ -64,15 +66,17 @@ class STFTPlot():
             if self.ch_names:
                 ax.set_title(str(self.ch_names[real_idx]))
 
-            # find min and max values for colors
-            tfr_ = self.tfr[real_idx]
+            tfr_ = self.tfr[real_idx, :, :self.residue]
+
             if self.ignore_times:
                 tfr_ = np.delete(tfr_, self.ignore_times, axis=1)
                 
+            # find min and max values for colors
             vvalues = 10 * np.log10(np.abs(tfr_.flatten()))
-
             vmax = max(vvalues)
-            vmin = np.average(vvalues)
+            # vmin = np.average(vvalues)
+            # try to get nice compromise for coloring
+            vmin = (1/5.0)*min(vvalues) + (4/5.0)*np.average(vvalues)
 
             ax.imshow(10 * np.log10(temp_z), vmin=vmin, vmax=vmax,
                       extent=[temp_x.min(), temp_x.max(), 
