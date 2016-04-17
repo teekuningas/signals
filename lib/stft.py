@@ -33,7 +33,6 @@ class STFTPlot():
         self.plot_window()
         key_release_cid = self.fig.canvas.mpl_connect('key_release_event', 
                                                       self.on_key_release)
-        plt.show()
 
     def on_key_release(self, event):
         if event.key == 'left':
