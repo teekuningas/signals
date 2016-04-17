@@ -1,1 +1,1 @@
-# Collection of brain signal processing related scripts
+Journey goes on..

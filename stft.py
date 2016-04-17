@@ -29,4 +29,5 @@ lpass_idx = max(np.where(freqs <= lpass)[0])
 freqs = freqs[hpass_idx:lpass_idx]
 tfr = tfr[:, hpass_idx:lpass_idx, :]
 
-STFTPlot(freqs, tfr, ch_names=channels.keys())
+plot_ = STFTPlot(freqs, tfr, ch_names=channels.keys())
+plt.show()
