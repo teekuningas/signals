@@ -72,10 +72,10 @@ class FourierICA(object):
         data2d = self._concat(stft_)
 
         print "Whiten the data"
-        whitened = self._whiten(data2d)
+        dewhitening, whitened = self._whiten(data2d)
 
         print "Do ICA!"
-        ic_ = self._fastica(whitened)
+        mixing_, ic_ = self._fastica(whitened)
 
         # sort according to objective value
         objectives = []
@@ -84,16 +84,44 @@ class FourierICA(object):
             g_ = np.log(1 + np.abs(component)**2)
             objectives.append(np.mean(g_))
         indices = np.argsort(objectives)[::-1]
-        sorted_ic = ic_[np.argsort(objectives), :]
 
+        sorted_ic = ic_[np.argsort(objectives), :]
+        sorted_mixing = mixing_[:, np.argsort(objectives)]
+
+        self._mixing = sorted_mixing
+        self._dewhitening = dewhitening
         self._source_stft = self._split(sorted_ic)
 
     @property
     def source_stft(self):
-        return self._freqs, self._source_stft
+        return self._source_stft
+
+    @property
+    def freqs(self):
+        return self._freqs
 
     def component_in_sensor_space(self, idx):
-        pass
+        """
+        """
+        # get concatenated source stft
+        data = self._concat(self._source_stft)
+
+        # zero out other components 
+        data[:idx, :] = 0
+        data[idx+1:, :] = 0
+
+        # use pseudoinverse to get to whitened sensor space
+        mixing_ = self._mixing
+        data = np.dot(mixing_, data)
+
+        # dewhiten
+        data = np.dot(self._dewhitening, data)
+
+        # add the mean
+        data += self._mean[:, np.newaxis]
+
+        # split again and return
+        return self._split(data)
 
     def _fastica(self, data):
         """ 
@@ -174,7 +202,10 @@ class FourierICA(object):
         ])
         print message
 
-        return np.dot(np.conj(W_).T, x)
+        # mixing_ = np.linalg.pinv(np.conj(W_).T)
+        mixing_ = W_
+
+        return mixing_, np.dot(np.conj(W_).T, x)
 
     def _whiten(self, data):
         """
@@ -185,7 +216,7 @@ class FourierICA(object):
         # substract mean value from channels
         mean_ = data.mean(axis=-1)
         data -= mean_[:, np.newaxis]
-        self.mean_ = mean_
+        self._mean = mean_
 
         # calculate eigenvectors and eigenvalues from covariance matrix
         covmat = np.cov(data)
@@ -218,7 +249,9 @@ class FourierICA(object):
         # whiten the data
         whitened = np.dot(whitening, data)
 
-        return whitened
+        dewhitening = np.dot(eigv, np.diag(dsqrt))
+
+        return dewhitening, whitened
 
     def _concat(self, data):
         # concatenate ft's to have two-dimensional data for ica
