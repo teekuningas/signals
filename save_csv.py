@@ -11,7 +11,7 @@ def group_save_evokeds(filename, evokeds, names):
     """ Combine data from multiple evokeds to one big csv """
 
     if len(evokeds) == 0:
-        raise Value("At least one evoked object is needed.")
+        raise ValueError("At least one evoked object is needed.")
 
     print "Writing " + str(len(evokeds)) + " subject's evoked data to csv."
 
