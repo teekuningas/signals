@@ -7,7 +7,7 @@ import sys
 import numpy as np
 import mne
 
-def group_save_evokeds(filename, evokeds, names=[]):
+def group_save_evokeds(filename, evokeds, names):
     """ Combine data from multiple evokeds to one big csv """
 
     if len(evokeds) == 0:
