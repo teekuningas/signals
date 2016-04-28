@@ -49,7 +49,14 @@ class FourierICA(object):
         """
 
         print "First do stft"
-        stft_ = stft(data, self.wsize, self.tstep)
+        if not isinstance(data, list):
+            data = [data]
+
+        to_be_averaged = []
+        for piece in data:
+            to_be_averaged.append(stft(piece, self.wsize, self.tstep))
+
+        stft_ = np.average(to_be_averaged, axis=0)
 
         # bandpass filter
         if self.sfreq:
