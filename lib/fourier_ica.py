@@ -45,9 +45,6 @@ class FourierICA(object):
         ---------
         data : ndarray, shape (channels, times)
 
-        Returns
-        ------
-
         """
 
         print "First do stft"
@@ -89,10 +86,11 @@ class FourierICA(object):
 
         sorted_ic = ic_[np.argsort(objectives), :]
         sorted_mixing = mixing_[:, np.argsort(objectives)]
+        sorted_dewhitening = dewhitening[:, np.argsort(objectives)]
 
         # store for retrieving
         self._mixing = sorted_mixing
-        self._dewhitening = dewhitening
+        self._dewhitening = sorted_dewhitening
         self._source_stft = self._split(sorted_ic)
 
     @property
@@ -113,9 +111,8 @@ class FourierICA(object):
         data[:idx, :] = 0
         data[idx+1:, :] = 0
 
-        # use mixing matrix to  get to whitened sensor space
-        mixing_ = self._mixing
-        data = np.dot(mixing_, data)
+        # use mixing matrix to get to whitened sensor space
+        data = np.dot(self._mixing, data)
 
         # dewhiten
         data = np.dot(self._dewhitening, data)
@@ -135,12 +132,12 @@ class FourierICA(object):
         if self.maxiter:
             maxiter = self.maxiter
         else:
-            maxiter = max(40 * self.n_components, 2000)
+            maxiter = max(40 * self.n_components, 10000)
 
         if self.conveps:
             conveps = self.conveps
         else:
-            conveps = 1e-8
+            conveps = 1e-13
 
         x = data
 
@@ -155,35 +152,43 @@ class FourierICA(object):
 
         for j in range(maxiter):
 
-            # precompute things
-            y_ = np.dot(np.conj(w_old.T), x)
-            g_ = np.log(1 + np.abs(y_)**2)
-            dg_ = 1.0 / (1 + np.abs(y_)**2)
-            
-            # get new mixing matrix
-            w_new = np.copy(w_old)
-            for i in range(w_old.shape[0]):
-                first = np.mean(x*np.conj(y_)[i, :]*g_[i, :], axis=-1)
-                second = np.mean(g_[i, :] + (np.abs(y_[i, :])**2)*dg_[i, :], axis=-1)*w_old[i, :]  # noqa
+            # get new mixing matrix by updating columns one by one
+            w_new = np.zeros((self.n_components, self.n_components), 
+                             dtype=np.complex128)
+            for i in range(w_old.shape[1]):
+                y_ = np.dot(np.conj(w_old[:, i]).T, x)
+                g_ = np.log(1 + np.abs(y_)**2)
+                dg_ = 1.0 / (1 + np.abs(y_)**2)
+
+                first = np.mean(x*np.conj(y_)*g_, axis=-1)
+                second = np.mean(g_ + (np.abs(y_)**2)*dg_, axis=-1)*w_old[:, i]  # noqa
                 w_new[:, i] = first - second
 
             # symmetrically decorrelate
             w_new = sym_decorrelation(w_new)
 
-            # check if converged
-            criterion = (np.sum(np.abs(np.sum(w_new*np.conj(w_old)))) /
+            # calculate convergence criterion
+            criterion = (np.sum(np.abs(np.sum(w_new*np.conj(w_old), axis=1))) /
                          self.n_components)
-            if 1 - criterion < conveps:
-                break
 
             # show something
-            if j%100 == 0:
-                print '.'
+            if j%20 == 0:
+                y_ = np.dot(np.conj(w_new.T), x)
+                g_ = np.log(1 + np.abs(y_)**2)
+                print 'Objective values are: ' + str(np.mean(g_, axis=-1))
+                print 'Convergence value: ' + str(1 - criterion)
+
+            # check if converged
+            if 1 - criterion < conveps:
+                break
 
             # store old value
             w_old = w_new
 
-        print 'ICA finished with ' + str(j) + ' iterations'
+        if j+1 == maxiter:
+            raise Exception('ICA did not converge.')
+
+        print 'ICA finished with ' + str(j+1) + ' iterations'
 
         return w_new, np.dot(np.conj(w_new).T, x)
 
