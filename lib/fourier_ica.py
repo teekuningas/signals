@@ -86,11 +86,10 @@ class FourierICA(object):
 
         sorted_ic = ic_[np.argsort(objectives), :]
         sorted_mixing = mixing_[:, np.argsort(objectives)]
-        sorted_dewhitening = dewhitening[:, np.argsort(objectives)]
 
         # store for retrieving
         self._mixing = sorted_mixing
-        self._dewhitening = sorted_dewhitening
+        self._dewhitening = dewhitening
         self._source_stft = self._split(sorted_ic)
 
     @property
