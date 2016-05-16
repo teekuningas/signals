@@ -12,7 +12,7 @@ def read_raw(filename):
         raw = mne.io.Raw(filename, preload=True)
     else:
         # assume egi
-        raw = mne.io.read_raw_egi(filename)
+        raw = mne.io.read_raw_egi(filename, preload=True)
     return raw
 
 
@@ -29,7 +29,7 @@ def main(from_file, to_file):
     temp_ica = get_ica_path(to_file)
     raw = read_raw(from_file)
 
-    raw.filter(l_freq=1, h_freq=80)
+    raw.filter(l_freq=1, h_freq=30)
 
     raw.plot()
 
