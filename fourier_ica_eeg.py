@@ -4,7 +4,6 @@ import numpy as np
 
 from lib.fourier_ica import FourierICA
 
-from lib.difference import DifferencePlot
 from lib.stft import STFTPlot
 
 
@@ -15,7 +14,7 @@ def plot_whole_measurement(raw):
     raw = raw.copy()
 
     wsize = 2000
-    n_components = 10
+    n_components = 5
 
     # find triggers
     try:
@@ -29,7 +28,7 @@ def plot_whole_measurement(raw):
     raw.drop_channels(raw.info['ch_names'][128:] + raw.info['bads'])
 
     # calculate fourier-ica
-    fica = FourierICA(wsize=wsize, n_components=n_components, conveps=1e-10,
+    fica = FourierICA(wsize=wsize, n_components=n_components,
                       sfreq=raw.info['sfreq'], hpass=4, lpass=15)
     fica.fit(raw._data[:, raw.first_samp:raw.last_samp])
 
@@ -82,7 +81,7 @@ def plot_epochs(raw, layout, band=[8, 14], averaged=False):
     wsize = 1000 # step size 500
     rad = 15
     sfreq = raw.info['sfreq']
-    n_components = 5
+    n_components = 3
 
     # find and filter triggers
     triggers = mne.find_events(raw)[:, 0]
@@ -92,10 +91,11 @@ def plot_epochs(raw, layout, band=[8, 14], averaged=False):
     # drop bad and non-data channels
     raw.drop_channels(raw.info['ch_names'][128:] + raw.info['bads'])
 
+    data = raw._data
+
     # create epochs
     epochs = []
     for trigger in triggers:
-        data = raw._data
         epochs.append(data[:, (trigger-rad*sfreq):(trigger+rad*sfreq)])
     
     # calculate fourier icas
@@ -132,13 +132,15 @@ def plot_epochs(raw, layout, band=[8, 14], averaged=False):
 
 if __name__ == '__main__':
 
-    # raw = mne.io.Raw('/home/zairex/Code/cibr/data/gradudemo/KH007_EOEC-pre.fif',
-    raw = mne.io.Raw('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH009_MED-raw.fif',
-                     preload=True)
+    epoch_raw = mne.io.Raw('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH009_MED-raw.fif',  # noqa
+                           preload=True)
+    # whole_raw = mne.io.Raw('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH009_MED-raw.fif',  # noqa
+    whole_raw = mne.io.Raw('/home/zairex/Code/cibr/data/gradudemo/KH005_EOEC-pre.fif',  # noqa
+                           preload=True)
 
     layout_fname = 'gsn_129.lout'
     layout_path = '/home/zairex/Code/cibr/materials/'
     layout = mne.channels.read_layout(layout_fname, layout_path)
 
-    # plot_whole_measurement(raw)
-    plot_epochs(raw, layout, band=[8, 14], averaged=False)
+    plot_whole_measurement(whole_raw)
+    # plot_epochs(epoch_raw, layout, band=[7, 18], averaged=False)
