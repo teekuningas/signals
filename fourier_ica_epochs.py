@@ -4,8 +4,6 @@ import numpy as np
 
 from lib.fourier_ica import FourierICA
 
-from lib.stft import STFTPlot
-
 
 def _filter_triggers(triggers, sfreq, start, end, rad=10, overlap=5):
     """
@@ -48,7 +46,7 @@ def plot_epochs(raw, layout, band=[8, 14], n_components=5):
     """
     raw = raw.copy()
 
-    wsize = 1000 # step size 500
+    wsize = 1024
     rad = 15
     sfreq = raw.info['sfreq']
 
@@ -94,9 +92,19 @@ def plot_epochs(raw, layout, band=[8, 14], n_components=5):
             axes = fig_.add_subplot(source_stft.shape[0], 1, i + 1)
             mne.viz.plot_tfr_topomap(tfr_, layout=layout, axes=axes, show=False)
 
-        plot_ = STFTPlot(freqs, source_stft, window_width=4*rad, 
-                         window_height=5,
-                         ch_names=[str(i+1) for i in range(len(source_stft))])
+        # mock info
+        info = raw.info.copy()
+        info['chs'] = info['chs'][0:5]
+
+        times = np.arange(-rad, rad, float(rad*2)/source_stft.shape[2])
+
+        tfr_ = mne.time_frequency.AverageTFR(info, np.abs(source_stft), 
+                                             times, freqs, 1)
+
+        fig_ = plt.figure()
+        for i in range(source_stft.shape[0]):
+            axes = fig_.add_subplot(source_stft.shape[0], 1, i + 1)
+            tfr_.plot(picks=[i], axes=axes, show=False, mode='logratio')
 
         plt.show()
 
