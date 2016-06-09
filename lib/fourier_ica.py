@@ -124,7 +124,7 @@ class FourierICA(object):
 
     def _fastica(self, data):
         """ 
-        Complex fastica depcited from
+        Complex fastica depicted from
         (Bingham and Hyvarinen, 2000)
         """
 
