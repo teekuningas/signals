@@ -46,7 +46,7 @@ def plot_epochs(raw, layout, band=[8, 14], n_components=5):
     """
     raw = raw.copy()
 
-    wsize = 1024
+    wsize = 4096
     rad = 15
     sfreq = raw.info['sfreq']
 
@@ -94,7 +94,7 @@ def plot_epochs(raw, layout, band=[8, 14], n_components=5):
 
         # mock info
         info = raw.info.copy()
-        info['chs'] = info['chs'][0:5]
+        info['chs'] = info['chs'][0:n_components]
 
         times = np.arange(-rad, rad, float(rad*2)/source_stft.shape[2])
 
@@ -110,12 +110,15 @@ def plot_epochs(raw, layout, band=[8, 14], n_components=5):
 
 
 if __name__ == '__main__':
-
-    fname = '/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH001_MED-raw.fif'  # noqa
+    # good: 1, 2, 3, 4, 5, 7, 9, 16, 24
+    # bad: 
+    fname = '/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH011_MED-raw.fif'  # noqa
     raw = mne.io.Raw(fname, preload=True)
 
     layout_fname = 'gsn_129.lout'
     layout_path = '/home/zairex/Code/cibr/materials/'
     layout = mne.channels.read_layout(layout_fname, layout_path)
 
-    plot_epochs(raw, layout, band=[4, 25], n_components=5)
+    mne.utils.set_log_level('ERROR')
+
+    plot_epochs(raw, layout, band=[4, 25], n_components=8)

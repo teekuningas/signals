@@ -171,14 +171,15 @@ class FourierICA(object):
                          self.n_components)
 
             # show something
-            if j%20 == 0:
-                y_ = np.dot(np.conj(w_new.T), x)
-                g_ = np.log(1 + np.abs(y_)**2)
-                print 'Objective values are: ' + str(np.mean(g_, axis=-1))
-                print 'Convergence value: ' + str(1 - criterion)
+            if j%30 == 0:
+                print ".",
 
             # check if converged
             if 1 - criterion < conveps:
+                y_ = np.dot(np.conj(w_new.T), x)
+                g_ = np.log(1 + np.abs(y_)**2)
+                print '\nObjective values are: ' + str(np.mean(g_, axis=-1))
+                print 'Convergence value: ' + str(1 - criterion)
                 break
 
             # store old value
