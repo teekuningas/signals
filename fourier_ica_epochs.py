@@ -187,6 +187,7 @@ def plot_components(components):
         source_component = (component.source_stft)[np.newaxis, :]
 
         times = np.arange(-rad, rad, float(rad*2)/source_component.shape[2])
+        times = times / info['sfreq']
         tfr_ = mne.time_frequency.AverageTFR(info, np.abs(source_component), 
                                              times, component.freqs, 1)
 
@@ -194,6 +195,43 @@ def plot_components(components):
         tfr_.plot(picks=[0], axes=axes, show=False, mode='logratio')
 
     plt.show()
+
+
+def cluster_matrix(component_matrix):
+    import pdb; pdb.set_trace()
+    return component_matrix
+
+
+def cluster_components(subjects):
+
+    # first create a flattened matrix out of subjects' component hierarchy
+    component_matrix = []
+    for subject in subjects:
+        for trial in subject.trials:
+            component_matrix.append(trial.components)
+
+    # do the actual clustering
+    ordered_matrix = cluster_matrix(component_matrix)
+
+    # recreate the structured component hierarchy
+    clustered = []
+    idx = 0
+    for subject in subjects:
+        new_trials = []
+        for trial in subject.trials:
+            new_components = ordered_matrix[idx]
+            new_trials.append(TrialData(
+                components = new_components
+            ))
+            idx += 1
+
+        clustered.append(SubjectData(
+            trials=new_trials,
+            path=subject.path,
+            type_=subject.type
+        ))
+
+    return clustered
 
 
 if __name__ == '__main__':
@@ -227,6 +265,8 @@ if __name__ == '__main__':
 
         print "Start pickling data.."
         pickle.dump(subjects, open("data/.fica_epochs.p", "wb"))
+
+    subjects = cluster_components(subjects)
 
     plot_components(subjects[0].trials[0].components)
 
