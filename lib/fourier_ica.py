@@ -131,7 +131,7 @@ class FourierICA(object):
         if self.maxiter:
             maxiter = self.maxiter
         else:
-            maxiter = max(40 * self.n_components, 10000)
+            maxiter = max(100 * self.n_components, 2000)
 
         if self.conveps:
             conveps = self.conveps
