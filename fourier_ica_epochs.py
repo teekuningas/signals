@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from lib.fourier_ica import FourierICA
+from lib.cluster import cluster_components as cluster_matrix
 
 
 BAND = [4, 25]
@@ -197,11 +198,6 @@ def plot_components(components):
     plt.show()
 
 
-def cluster_matrix(component_matrix):
-    import pdb; pdb.set_trace()
-    return component_matrix
-
-
 def cluster_components(subjects):
 
     # first create a flattened matrix out of subjects' component hierarchy
@@ -211,7 +207,7 @@ def cluster_components(subjects):
             component_matrix.append(trial.components)
 
     # do the actual clustering
-    ordered_matrix = cluster_matrix(component_matrix)
+    ordered_matrix = cluster_matrix(np.array(component_matrix))
 
     # recreate the structured component hierarchy
     clustered = []
