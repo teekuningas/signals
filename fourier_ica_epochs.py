@@ -207,7 +207,7 @@ def cluster_components(subjects):
             component_matrix.append(trial.components)
 
     # do the actual clustering
-    ordered_matrix = cluster_matrix(np.array(component_matrix))
+    ordered_matrix = cluster_matrix(component_matrix)
 
     # recreate the structured component hierarchy
     clustered = []
