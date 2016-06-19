@@ -12,7 +12,16 @@ def _distance(component1, component2):
 def _objective(components):
     """
     """
-    return 1.0
+    
+    length = len(components[0])
+    combinations = itertools.combinations(range(len(components)), 2)
+    
+    sum_ = 0
+    for combination in combinations:
+        for i in range(length):
+            sum_ += _distance(components[combination[0]][i],
+                              components[combination[1]][i])
+    return sum_
 
 
 def _order_similarly(model, unordered):
