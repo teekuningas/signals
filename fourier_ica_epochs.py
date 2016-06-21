@@ -43,12 +43,13 @@ FILENAMES = [
 class ComponentData(object):
     """
     """
-    def __init__(self, source_stft, sensor_stft, source_psd, freqs, info):
+    def __init__(self, source_stft, sensor_stft, source_psd, freqs, info, layout):
         self.source_stft = source_stft
         self.source_psd = source_psd
         self.sensor_stft = sensor_stft
         self.freqs = freqs
         self.info = info
+        self.layout = layout
 
 
 class TrialData(object):
@@ -141,7 +142,7 @@ def get_fica(epoch, sfreq):
         pass
 
 
-def get_trial_data(fica, info):
+def get_trial_data(fica, info, layout):
     source_stft = fica.source_stft
 
     components = []
@@ -155,17 +156,13 @@ def get_trial_data(fica, info):
             source_psd=source_psd,
             freqs=fica.freqs,
             info=info.copy(),
+            layout=layout
         )
         components.append(component_data)
     return TrialData(components=components)
 
 
 def plot_components(components):
-
-    layout_fname = 'gsn_129.lout'
-    layout_path = '/home/zairex/Code/cibr/materials/'
-    layout = mne.channels.read_layout(layout_fname, layout_path)
-
     # create figure for head topographies
     fig_ = plt.figure()
     for i, component in enumerate(components):
@@ -174,7 +171,7 @@ def plot_components(components):
             range(sensor_component.shape[2]), component.freqs, 1)
 
         axes = fig_.add_subplot(len(components), 1, i + 1)
-        mne.viz.plot_tfr_topomap(tfr_, layout=layout, axes=axes, show=False)
+        mne.viz.plot_tfr_topomap(tfr_, layout=component.layout, axes=axes, show=False)
 
     # create figure ica components
     fig_ = plt.figure()
@@ -243,6 +240,11 @@ if __name__ == '__main__':
         subjects = []
 
     if not subjects:
+
+        layout_fname = 'gsn_129.lout'
+        layout_path = '/home/zairex/Code/cibr/materials/'
+        layout = mne.channels.read_layout(layout_fname, layout_path)
+
         for fname, type_ in FILENAMES:
             raw = mne.io.Raw(fname, preload=True)
             epochs = get_epochs(raw)
@@ -254,7 +256,7 @@ if __name__ == '__main__':
 
             trials = []
             for fica in ficas:
-                trials.append(get_trial_data(fica, raw.info))
+                trials.append(get_trial_data(fica, raw.info, layout))
             
             subject = SubjectData(trials=trials, path=fname, type_=type_)
             subjects.append(subject)
@@ -262,7 +264,11 @@ if __name__ == '__main__':
         print "Start pickling data.."
         pickle.dump(subjects, open("data/.fica_epochs.p", "wb"))
 
-    subjects = cluster_components(subjects)
+    subjects = cluster_components([subjects[0]])
 
-    plot_components(subjects[0].trials[0].components)
+    int_components = [trial.components[0] for trial in subjects[0].trials]
+
+    import pdb; pdb.set_trace()
+
+    plot_components(int_components)
 
