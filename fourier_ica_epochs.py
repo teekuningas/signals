@@ -43,13 +43,13 @@ FILENAMES = [
 class ComponentData(object):
     """
     """
-    def __init__(self, source_stft, sensor_stft, source_psd, freqs, info, layout):
+    def __init__(self, source_stft, sensor_stft, sensor_topo, source_psd, freqs, info):
         self.source_stft = source_stft
-        self.source_psd = source_psd
         self.sensor_stft = sensor_stft
+        self.source_psd = source_psd
+        self.sensor_topo = sensor_topo
         self.freqs = freqs
         self.info = info
-        self.layout = layout
 
 
 class TrialData(object):
@@ -142,27 +142,55 @@ def get_fica(epoch, sfreq):
         pass
 
 
+def create_image(topo, layout, info, size=32):
+    indices = [idx for idx, name in enumerate(layout.names)
+               if name in info['ch_names']]
+    image = np.zeros((size, size))
+    for i in range(len(topo)):
+        location = layout.pos[layout.names.index(info['ch_names'][i])]
+        x = int(location[0] * 32)
+        y = int(location[1] * 32)
+        image[x, y] += topo[i]
+
+    return image
+
+
+def create_topo(sensor_stft, layout, info):
+
+    # calculate "images"
+    topo = np.sum(np.abs(sensor_stft), axis=(1, 2))
+
+    # normalize
+    topo = topo / np.linalg.norm(topo)
+
+    # create comparable images
+    image = create_image(topo, layout, info)
+
+    return image
+
+
 def get_trial_data(fica, info, layout):
     source_stft = fica.source_stft
 
     components = []
     for i in range(COMPONENTS):
         source_component = source_stft[i] 
-        sensor_component = fica.component_in_sensor_space(i)
+        sensor_stft = fica.component_in_sensor_space(i)
+        sensor_topo = create_topo(sensor_stft, layout, info)
         source_psd = np.mean(np.abs(source_stft[i]), axis=-1)
         component_data = ComponentData(
             source_stft=source_component,
-            sensor_stft=sensor_component,
+            sensor_stft=sensor_stft,
+            sensor_topo=sensor_topo,
             source_psd=source_psd,
             freqs=fica.freqs,
             info=info.copy(),
-            layout=layout
         )
         components.append(component_data)
     return TrialData(components=components)
 
 
-def plot_components(components):
+def plot_components(components, layout):
     # create figure for head topographies
     fig_ = plt.figure()
     for i, component in enumerate(components):
@@ -171,7 +199,7 @@ def plot_components(components):
             range(sensor_component.shape[2]), component.freqs, 1)
 
         axes = fig_.add_subplot(len(components), 1, i + 1)
-        mne.viz.plot_tfr_topomap(tfr_, layout=component.layout, axes=axes, show=False)
+        mne.viz.plot_tfr_topomap(tfr_, layout=layout, axes=axes, show=False)
 
     # create figure ica components
     fig_ = plt.figure()
@@ -231,6 +259,10 @@ if __name__ == '__main__':
 
     mne.utils.set_log_level('ERROR')
 
+    layout_fname = 'gsn_129.lout'
+    layout_path = '/home/zairex/Code/cibr/materials/'
+    layout = mne.channels.read_layout(layout_fname, layout_path)
+
     try:
         print "Trying to load processed data from file"
         subjects = pickle.load(open("data/.fica_epochs.p", "rb"))
@@ -240,10 +272,6 @@ if __name__ == '__main__':
         subjects = []
 
     if not subjects:
-
-        layout_fname = 'gsn_129.lout'
-        layout_path = '/home/zairex/Code/cibr/materials/'
-        layout = mne.channels.read_layout(layout_fname, layout_path)
 
         for fname, type_ in FILENAMES:
             raw = mne.io.Raw(fname, preload=True)
@@ -264,11 +292,11 @@ if __name__ == '__main__':
         print "Start pickling data.."
         pickle.dump(subjects, open("data/.fica_epochs.p", "wb"))
 
-    subjects = cluster_components([subjects[0]])
+    subjects = cluster_components(subjects)
 
     int_components = [trial.components[0] for trial in subjects[0].trials]
 
     import pdb; pdb.set_trace()
 
-    plot_components(int_components)
+    plot_components(int_components, layout)
 

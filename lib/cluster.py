@@ -4,34 +4,13 @@ import multiprocessing
 import numpy as np
 
 
-def _create_image(topo, layout, info, size=32):
-    indices = [idx for idx, name in enumerate(layout.names) 
-               if name in info['ch_names']]
-    image = np.zeros((size, size))
-    for i in range(len(topo)):
-        location = layout.pos[layout.names.index(info['ch_names'][i])]
-        x = int(location[0] * 32)
-        y = int(location[1] * 32)
-        image[x, y] += topo[i] 
-
-    return image
-
-
 def _distance(component1, component2):
     """
     """
-    # calculate "images"
-    topo1 = np.sum(np.sum(np.abs(component1.sensor_stft), axis=1), axis=1)
-    topo2 = np.sum(np.sum(np.abs(component2.sensor_stft), axis=1), axis=1)
 
-    # normalize
-    topo1 = topo1 / np.linalg.norm(topo1)
-    topo2 = topo2 / np.linalg.norm(topo2)
+    image1 = component1.sensor_topo
+    image2 = component2.sensor_topo
 
-    # create comparable images
-    image1 = _create_image(topo1, component1.layout, component1.info)
-    image2 = _create_image(topo2, component2.layout, component2.info)
- 
     # distance of images
     distance =  np.linalg.norm(np.abs(image1 - image2))
 
@@ -100,12 +79,12 @@ def _get_initial_state(data):
         parallel_count = (cpu_count if (solution_count-1) - idx >= cpu_count 
                           else (solution_count-1) - idx)
 
-        data = [(data[0, :][solution[0, :]], data[i+1, :]) 
-                for i in range(idx, idx + parallel_count)]
+        components = [(data[0, :][solution[0, :]], data[i+1, :]) 
+                      for i in range(idx, idx + parallel_count)]
 
         intmed = pool.map(
             _order_similarly,
-            data
+            components
         )
 
         for i in range(parallel_count):
