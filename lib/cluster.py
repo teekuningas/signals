@@ -1,5 +1,5 @@
 import itertools
-import multiprocessing
+from random import random
 
 import numpy as np
 
@@ -32,68 +32,100 @@ def _objective(collections):
     return sum_
 
 
-def _order_similarly(data):
-    """
-    """
-    model, unordered = data
+def _nonesorter(value):
+    if not value[0]:
+        return float("inf")
+    return value[0]
+
+
+def _order_similarly(model, unordered, amount):
+    """ Returns `amount` best solutions
+    """ 
 
     permutations = [list(perm) for perm in 
                     itertools.permutations(range(model.shape[0]))]
 
-    min_objective = None
-    min_permutation = None
+    # replace last one and sort
+
+    min_permutations = [(None, None)]*amount
+
     for i, permutation in enumerate(permutations):
-        if i%1000 == 0:
-            print (str(i) + "'s permutation of thread " + 
-                   str(multiprocessing.current_process()))
         objective = _objective([model, unordered[permutation]])
-        if not min_objective or objective < min_objective:
-            min_objective = objective
-            min_permutation = permutation
-    
-    return min_permutation
+
+        last_obj, last_perm = min_permutations[amount-1]
+
+        if not last_obj or objective < last_obj:
+            min_permutations[amount-1] = (objective, permutation)
+         
+            # sort if new entry
+            min_permutations = sorted(min_permutations, key=_nonesorter)
+
+    return [perm for obj, perm in min_permutations]
 
 
 def _get_initial_state(data):
     """
     """
+
+    # take `amount` best solutions
+    amount = 5
+
     data = np.array(data)
 
     # create an index array
-    solution = np.zeros((data.shape[0], data.shape[1]))
+    solution = np.zeros((data.shape[0], amount, data.shape[1]))
     solution = solution.astype(np.int8)
 
     # take first as it is
-    solution[0, :] = np.arange(solution.shape[1])
+    solution[0, :, :] = np.array([range(data.shape[1]) for i in range(amount)])
 
-    # order rest with respect to first one
-    cpu_count = multiprocessing.cpu_count()
-    pool = multiprocessing.Pool(cpu_count)
     solution_count = solution.shape[0]
 
-    idx = 0
-    while True:
-        print (str(idx+1) + " out of " + str(solution_count) + 
+    for i in range(data.shape[0] - 1):
+
+        model = data[0, :][solution[0, 0, :]]
+        unordered = data[i+1, :]
+
+        sol = _order_similarly(model, unordered, amount)
+
+        solution[i+1, :] = np.array(sol)
+
+        print (str(i+2) + " out of " + str(solution_count) + 
                " initial solutions found.")
 
-        parallel_count = (cpu_count if (solution_count-1) - idx >= cpu_count 
-                          else (solution_count-1) - idx)
+    return solution
 
-        components = [(data[0, :][solution[0, :]], data[i+1, :]) 
-                      for i in range(idx, idx + parallel_count)]
 
-        intmed = pool.map(
-            _order_similarly,
-            components
-        )
+def _cost(solution):
+    return 1.0
 
-        for i in range(parallel_count):
-            solution[idx+i+1, :] = intmed[i]
 
-        idx += parallel_count
-        if idx >= solution_count - 1:
-            break
+def _neighbor(solution):
+    return solution
 
+
+def _acceptance_probability(old_cost, new_cost, T):
+    return 1.0
+
+
+def _anneal(solution):
+    """ depicted from http://katrinaeg.com/simulated-annealing.html
+    """
+    old_cost = _cost(solution)
+    T = 1.0
+    T_min = 0.00001
+    alpha = 0.9
+    while T > T_min:
+        idx = 1
+        while idx <= 100:
+            new_solution = _neighbor(solution)
+            new_cost = _cost(new_solution)
+            ap = _acceptance_probability(old_cost, new_cost, T)
+            if ap > random():
+                solution = new_solution
+                old_cost = new_cost
+            idx += 1
+        T = T*alpha
     return solution
 
 
@@ -110,9 +142,9 @@ def cluster_components(components):
     initial_state = _get_initial_state(np_components)
 
     print "Do simulated annealing.."
-    solution = initial_state
+    solution = _anneal(initial_state)
 
     for i in range(len(components)):
-        components[i] = list(np_components[i, :][solution[i]])
+        components[i] = list(np_components[i, :][solution[i, 0]])
 
     return components

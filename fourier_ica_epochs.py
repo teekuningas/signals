@@ -292,6 +292,8 @@ if __name__ == '__main__':
         print "Start pickling data.."
         pickle.dump(subjects, open("data/.fica_epochs.p", "wb"))
 
+    subjects = subjects[0:3]
+
     subjects = cluster_components(subjects)
 
     int_components = [trial.components[0] for trial in subjects[0].trials]
