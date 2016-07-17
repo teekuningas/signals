@@ -255,7 +255,7 @@ def cluster_components(subjects):
     return clustered
 
 
-if __name__ == '__main__':
+def main():
 
     mne.utils.set_log_level('ERROR')
 
@@ -263,15 +263,15 @@ if __name__ == '__main__':
     layout_path = '/home/zairex/Code/cibr/materials/'
     layout = mne.channels.read_layout(layout_fname, layout_path)
 
-    try:
-        print "Trying to load processed data from file"
-        subjects = pickle.load(open("data/.fica_epochs.p", "rb"))
-        print "Loading succeeded!"
-    except:
-        print "Loading failed, processing.."
-        subjects = []
+    input_ = raw_input('Load raw files, structured data or clustered data (r, s, c)? ')
 
-    if not subjects:
+    if input_ not in ['r', 's', 'c']:
+        print "Quitting."
+        return
+
+    if input_ == 'r':
+        print "Reading and processing data from files.."
+        subjects = []
 
         for fname, type_ in FILENAMES:
             raw = mne.io.Raw(fname, preload=True)
@@ -292,13 +292,33 @@ if __name__ == '__main__':
         print "Start pickling data.."
         pickle.dump(subjects, open("data/.fica_epochs.p", "wb"))
 
-    subjects = subjects[0:3]
+    if input_ == 's':
+        print "Trying to load structured data from pickle file"
+        subjects = pickle.load(open("data/.fica_epochs.p", "rb"))
+        print "Loading succeeded!"
 
-    subjects = cluster_components(subjects)
+    if input_ == 'c':
+        print "Trying to load clustered data from pickle file"
+        subjects = pickle.load(open("data/.fica_epochs_clustered.p", "rb"))
+        print "Loading succeeded!"
+    else:
+        subjects = cluster_components(subjects)
 
-    int_components = [trial.components[0] for trial in subjects[0].trials]
+        print "Start pickling data.."
+        pickle.dump(subjects, open("data/.fica_epochs_clustered.p", "wb"))
 
     import pdb; pdb.set_trace()
 
-    plot_components(int_components, layout)
+    # plot_components(subjects[0].trials[0].components, layout)
 
+    for i in range(COMPONENTS):
+        int_components = []
+        for subject in subjects:
+            int_components.append(subject.trials[0].components[i])
+        plot_components(int_components, layout)
+
+
+
+
+if __name__ == '__main__':
+    main()

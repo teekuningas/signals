@@ -1,5 +1,8 @@
 import itertools
+import math
+
 from random import random
+from random import randint
 
 import numpy as np
 
@@ -70,8 +73,6 @@ def _get_initial_state(data):
     # take `amount` best solutions
     amount = 5
 
-    data = np.array(data)
-
     # create an index array
     solution = np.zeros((data.shape[0], amount, data.shape[1]))
     solution = solution.astype(np.int8)
@@ -96,32 +97,58 @@ def _get_initial_state(data):
     return solution
 
 
-def _cost(solution):
-    return 1.0
+def _cost(components, solution):
+    ordered = [component[solution[i, 0]] 
+               for i, component in enumerate(components)]
+    return _objective(ordered)
 
 
 def _neighbor(solution):
-    return solution
+
+    new_solution = solution.copy()
+
+    # select three trials to swap
+    trial_idxs = [randint(0, solution.shape[0] - 1) for i in range(3)]
+    for trial_idx in trial_idxs:
+
+        # swap random solution with first one
+        solution_idx = randint(0, solution.shape[1] - 1)
+        new_solution[trial_idx, 0] = solution[trial_idx, solution_idx]
+        new_solution[trial_idx, solution_idx] = solution[trial_idx, 0]
+
+    return new_solution
 
 
 def _acceptance_probability(old_cost, new_cost, T):
-    return 1.0
+
+    if old_cost > new_cost:
+        return 1.0
+
+    return pow(math.e, float(old_cost-new_cost)/T)
 
 
-def _anneal(solution):
+def _anneal(components, solution):
     """ depicted from http://katrinaeg.com/simulated-annealing.html
     """
-    old_cost = _cost(solution)
+    old_cost = _cost(components, solution)
     T = 1.0
-    T_min = 0.00001
+    T_min = 0.0001
     alpha = 0.9
     while T > T_min:
+        print str(T)
         idx = 1
         while idx <= 100:
-            new_solution = _neighbor(solution)
-            new_cost = _cost(new_solution)
+            new_solution = _neighbor(solution.copy())
+            new_cost = _cost(components, new_solution)
             ap = _acceptance_probability(old_cost, new_cost, T)
             if ap > random():
+                if old_cost > new_cost: 
+                    print "Improves!"
+                if old_cost < new_cost:
+                    print "Gets worse!"
+                if not old_cost == new_cost:
+                    print "old_cost: ", old_cost, ", new_cost: ", new_cost
+
                 solution = new_solution
                 old_cost = new_cost
             idx += 1
@@ -142,7 +169,7 @@ def cluster_components(components):
     initial_state = _get_initial_state(np_components)
 
     print "Do simulated annealing.."
-    solution = _anneal(initial_state)
+    solution = _anneal(np_components, initial_state)
 
     for i in range(len(components)):
         components[i] = list(np_components[i, :][solution[i, 0]])
