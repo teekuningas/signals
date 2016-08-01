@@ -1,12 +1,13 @@
 import mne
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import numpy as np
 
 from lib.fourier_ica import FourierICA
 from lib.stft import STFTPlot
+from lib.utils import filter_triggers
 
-
-raw = mne.io.Raw('data/eoec-raw.fif', preload=True)
+raw = mne.io.Raw('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH001_MED-raw.fif', preload=True)
 
 layout_fname = 'gsn_129.lout'
 layout_path = 'data/'
@@ -14,7 +15,12 @@ layout = mne.channels.read_layout(layout_fname, layout_path)
 
 wsize = 2048
 n_components = 5
+radius = 15
 sfreq = raw.info['sfreq']
+
+# find triggers
+triggers = mne.find_events(raw)[:, 0]
+triggers = filter_triggers(triggers, sfreq, raw.first_samp, raw.last_samp, radius*sfreq)
 
 # drop bad and non-data channels
 raw.drop_channels(raw.info['ch_names'][128:] + raw.info['bads'])
@@ -45,10 +51,13 @@ for i in range(source_stft.shape[0]):
     axes = fig_.add_subplot(source_stft.shape[0], 1, i+1)
     axes.plot(x, y)
 
-
 # mock info
 info = raw.info.copy()
 info['chs'] = info['chs'][0:5]
+info['ch_names'] = info['ch_names'][0:5]
+info['nchan'] = 5
+
+import pdb; pdb.set_trace()
 
 fig_ = plt.figure()
 position = 0
@@ -71,6 +80,19 @@ def update_tfr_plot(position):
 	tfr_ = mne.time_frequency.AverageTFR(info, data, times, freqs, 1)
 	axes = fig_.add_subplot(source_stft.shape[0], 1, i + 1)
 	tfr_.plot(picks=[i], axes=axes, show=False, mode='logratio')
+
+        # add triggers
+        print triggers
+        for trigger in triggers:
+            if (trigger >= window*(position+1)*sfreq 
+                    or trigger < window*position*sfreq):
+                continue
+            x = trigger - window*position
+            height = axes.get_ylim()[1] - axes.get_ylim()[0]
+            width = float(axes.get_xlim()[1] - axes.get_xlim()[0]) / 50
+            axes.add_patch(
+                patches.Rectangle((x - width / 2, 0.0), width, height)
+            )
 
     plt.draw()
 
