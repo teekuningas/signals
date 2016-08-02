@@ -263,10 +263,6 @@ def main():
 
     mne.utils.set_log_level('ERROR')
 
-    layout_fname = 'gsn_129.lout'
-    layout_path = '/home/zairex/Code/cibr/materials/'
-    layout = mne.channels.read_layout(layout_fname, layout_path)
-
     try:
         result_arg = filter(lambda x: 'RESULT=' in x, sys.argv)[0].split('=')[1]
     except:
@@ -276,6 +272,10 @@ def main():
         source_arg = filter(lambda x: 'SOURCE=' in x, sys.argv)[0].split('=')[1]
     except:
         source_arg = SOURCE_FOLDER
+
+    layout_fname = 'gsn_129.lout'
+    layout_path = source_arg
+    layout = mne.channels.read_layout(layout_fname, layout_path)
 
     input_ = raw_input('Load raw files, structured data or clustered data (r, s, c)? ')
 
