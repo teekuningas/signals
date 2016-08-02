@@ -287,7 +287,8 @@ def main():
         print "Reading and processing data from files.."
         subjects = []
 
-        for fname, type_ in [source_arg + filename for filename in FILENAMES]:
+        for fname, type_ in FILENAMES:
+            fname = source_arg + fname
             raw = mne.io.Raw(fname, preload=True)
             epochs = get_epochs(raw)
             sfreq = raw.info['sfreq']
