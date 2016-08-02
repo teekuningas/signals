@@ -1,4 +1,5 @@
 import pickle
+import sys
 
 import mne
 import matplotlib.pyplot as plt
@@ -13,30 +14,33 @@ COMPONENTS = 8
 RADIUS = 15
 WSIZE = 4096
 
+SOURCE_FOLDER = '/home/zairex/Code/cibr/data/graduprosessoidut'
+RESULT_FOLDER = '/home/zairex/Code/cibr/analysis/data'
+
 FILENAMES = [
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH001_MED-raw.fif', 'experienced'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH002_MED-raw.fif', 'experienced'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH003_MED-raw.fif', 'experienced'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH004_MED-raw.fif', 'experienced'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH005_MED-raw.fif', 'experienced'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH007_MED-raw.fif', 'experienced'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH009_MED-raw.fif', 'experienced'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH016_MED-raw.fif', 'experienced'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH017_MED-raw.fif', 'experienced'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH024_MED-raw.fif', 'experienced'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokemattomat/KH011_MED-raw.fif', 'novice'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokemattomat/KH013_MED-raw.fif', 'novice'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokemattomat/KH014_MED-raw.fif', 'novice'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokemattomat/KH015_MED-raw.fif', 'novice'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokemattomat/KH019_MED-raw.fif', 'novice'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokemattomat/KH021_MED-raw.fif', 'novice'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokemattomat/KH023_MED-raw.fif', 'novice'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokemattomat/KH025_MED-raw.fif', 'novice'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokemattomat/KH026_MED-raw.fif', 'novice'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokemattomat/KH028_MED-raw.fif', 'novice'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokemattomat/KH029_MED-raw.fif', 'novice'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokemattomat/KH030_MED-raw.fif', 'novice'),  # noqa
-    ('/home/zairex/Code/cibr/data/graduprosessoidut/kokemattomat/KH031_MED-raw.fif', 'novice'),  # noqa
+    ('/kokeneet/KH001_MED-raw.fif', 'experienced'), 
+    ('/kokeneet/KH002_MED-raw.fif', 'experienced'), 
+    ('/kokeneet/KH003_MED-raw.fif', 'experienced'), 
+    ('/kokeneet/KH004_MED-raw.fif', 'experienced'), 
+    ('/kokeneet/KH005_MED-raw.fif', 'experienced'), 
+    ('/kokeneet/KH007_MED-raw.fif', 'experienced'), 
+    ('/kokeneet/KH009_MED-raw.fif', 'experienced'), 
+    ('/kokeneet/KH016_MED-raw.fif', 'experienced'), 
+    ('/kokeneet/KH017_MED-raw.fif', 'experienced'), 
+    ('/kokeneet/KH024_MED-raw.fif', 'experienced'), 
+    ('/kokemattomat/KH011_MED-raw.fif', 'novice'), 
+    ('/kokemattomat/KH013_MED-raw.fif', 'novice'), 
+    ('/kokemattomat/KH014_MED-raw.fif', 'novice'), 
+    ('/kokemattomat/KH015_MED-raw.fif', 'novice'), 
+    ('/kokemattomat/KH019_MED-raw.fif', 'novice'), 
+    ('/kokemattomat/KH021_MED-raw.fif', 'novice'), 
+    ('/kokemattomat/KH023_MED-raw.fif', 'novice'), 
+    ('/kokemattomat/KH025_MED-raw.fif', 'novice'), 
+    ('/kokemattomat/KH026_MED-raw.fif', 'novice'), 
+    ('/kokemattomat/KH028_MED-raw.fif', 'novice'), 
+    ('/kokemattomat/KH029_MED-raw.fif', 'novice'), 
+    ('/kokemattomat/KH030_MED-raw.fif', 'novice'), 
+    ('/kokemattomat/KH031_MED-raw.fif', 'novice'), 
 ]
 
 
@@ -263,6 +267,16 @@ def main():
     layout_path = '/home/zairex/Code/cibr/materials/'
     layout = mne.channels.read_layout(layout_fname, layout_path)
 
+    try:
+        result_arg = filter(lambda x: 'RESULT=' in x, sys.argv)[0].split('=')[1]
+    except:
+        result_arg = RESULT_FOLDER
+
+    try:
+        source_arg = filter(lambda x: 'SOURCE=' in x, sys.argv)[0].split('=')[1]
+    except:
+        source_arg = SOURCE_FOLDER
+
     input_ = raw_input('Load raw files, structured data or clustered data (r, s, c)? ')
 
     if input_ not in ['r', 's', 'c']:
@@ -273,7 +287,7 @@ def main():
         print "Reading and processing data from files.."
         subjects = []
 
-        for fname, type_ in FILENAMES:
+        for fname, type_ in [source_arg + filename for filename in FILENAMES]:
             raw = mne.io.Raw(fname, preload=True)
             epochs = get_epochs(raw)
             sfreq = raw.info['sfreq']
@@ -290,22 +304,22 @@ def main():
             subjects.append(subject)
 
         print "Start pickling data.."
-        pickle.dump(subjects, open("data/.fica_epochs.p", "wb"))
+        pickle.dump(subjects, open(result_arg + "/.fica_epochs.p", "wb"))
 
     if input_ == 's':
         print "Trying to load structured data from pickle file"
-        subjects = pickle.load(open("data/.fica_epochs.p", "rb"))
+        subjects = pickle.load(open(result_arg + "/.fica_epochs.p", "rb"))
         print "Loading succeeded!"
 
     if input_ == 'c':
         print "Trying to load clustered data from pickle file"
-        subjects = pickle.load(open("data/.fica_epochs_clustered.p", "rb"))
+        subjects = pickle.load(open(result_arg + "/.fica_epochs_clustered.p", "rb"))
         print "Loading succeeded!"
     else:
         subjects = cluster_components(subjects)
 
         print "Start pickling data.."
-        pickle.dump(subjects, open("data/.fica_epochs_clustered.p", "wb"))
+        pickle.dump(subjects, open(result_arg + "/.fica_epochs_clustered.p", "wb"))
 
     import pdb; pdb.set_trace()
 
@@ -316,8 +330,6 @@ def main():
         for subject in subjects:
             int_components.append(subject.trials[0].components[i])
         plot_components(int_components, layout)
-
-
 
 
 if __name__ == '__main__':
