@@ -21,7 +21,7 @@ def find_peaks(data, threshold, gap_length):
     # fill small gaps
     for x in range(thresholded_data.shape[0]):
         if x % 10000 == 0:
-            print str(float(x)/thresholded_data.shape[0]) + " %"
+            print str(100*float(x)/thresholded_data.shape[0]) + " %"
         sum_left = 0
         sum_right = 0
         for i in range(-gap_length, 0):
@@ -46,26 +46,31 @@ def find_peaks(data, threshold, gap_length):
 
 if __name__ == '__main__':
 
-    audio_data, sfreq, encoding = wavread('delays.wav')
+    folder = '/home/zairex/Code/cibr/analysis/data/'
+
+    audio_data, sfreq, encoding = wavread(folder + 'viive.wav')
 
     # crop and decimate
     factor = 5
-    interesting_area = [51000, 1250000]
+    interesting_area = [0, 10000000]
     sfreq = float(sfreq) / factor
     audio_data = audio_data[interesting_area[0]:interesting_area[1]:factor]
 
-    with open('logfile.txt', 'rb') as stim_file:
+    with open(folder + 'logfile2.txt', 'rb') as stim_file:
         stim_data = stim_file.readlines()
 
     stim_data = np.array([float(line.split(', ')[4]) for line in stim_data])
 
     # params
-    peak_threshold = 0.22
+    peak_threshold = 0.4
     gap_length = int(0.25*sfreq)
 
     audio_peaks = find_peaks(audio_data, peak_threshold, gap_length) / float(sfreq)
 
     delays = np.abs(stim_data-audio_peaks)
+
+    for delay in delays:
+        print delay
 
     print "Std: " + str(np.std(delays))
     print "Max deviation: " + str(max(delays - np.mean(delays)))
