@@ -1,6 +1,7 @@
 # Authors: Erkka Heinila <erkka.heinila@jyu.fi>
 #
 # License: BSD (3-clause)
+import sys
 
 import numpy as np
 import mne
@@ -173,6 +174,7 @@ class FourierICA(object):
             # show something
             if j%30 == 0:
                 print ".",
+                sys.stdout.flush()
 
             # check if converged
             if 1 - criterion < conveps:

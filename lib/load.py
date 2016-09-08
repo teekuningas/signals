@@ -1,6 +1,4 @@
 import mne
-import numpy as np
-import matplotlib.pyplot as plt
 
 folder = '/home/zairex/Code/cibr/data/MI_eggie/'
 
@@ -50,64 +48,24 @@ subjects = {
                 'MI_KH014_meditaatio 201306.002'],
         'eoec': ['MI_KH014_EOEC 20130627 0947.raw']
     },
-
 }
 
-# front, back, right, left
-channels = [11, 75, 108, 45]
 
-subject = subjects['KH002']
-threshold = 0.02
-
-# log, power?
-
-layout_path = '/home/zairex/Code/cibr/materials/'
-layout_filename = 'gsn_129.lout'
-layout = mne.channels.read_layout(layout_filename, layout_path)
-
-def get_raw(filenames):
+def _get_raw(filenames, clean_channels=False):
     parts = [mne.io.read_raw_egi(folder + fname, preload=True) for fname in filenames]
     raw = parts[0]
     raw.append(parts[1:])
 
     raw.filter(l_freq=1, h_freq=100)
 
-    picks = mne.pick_types(raw.info, eeg=True)
-    raw.drop_channels([name for idx, name in enumerate(raw.info['ch_names']) 
-                       if idx not in picks])
+    if clean_channels:
+        picks = mne.pick_types(raw.info, eeg=True)
+        raw.drop_channels([name for idx, name in enumerate(raw.info['ch_names'])
+                           if idx not in picks])
 
     return raw
 
-eoec_raw = get_raw(subject['eoec'])
-med_raw = get_raw(subject['med'])
 
-raw = eoec_raw
-raw.append(med_raw)
-
-wsize = 4096
-data = raw._data
-
-stft = np.log(1 + np.abs(mne.time_frequency.stft(data, wsize)))
-freqs = mne.time_frequency.stftfreq(wsize, raw.info['sfreq'])
-
-# standardize
-max_ = np.max(stft)
-min_ = np.min(stft)
-stft = (stft - min_) / (max_ - min_)
-
-# clip
-stft = np.clip(stft, 0, threshold)
-
-stft = stft - threshold/2
-
-tfr = mne.time_frequency.AverageTFR(
-    raw.info, stft, np.arange(stft.shape[2], dtype=np.float64), freqs, 1
-)
-
-picks = mne.pick_types(raw.info, eeg=True)
-
-for channel in channels:
-    tfr.plot(picks=[channel], title=str(channel), fmin=1, fmax=100, show=False)
-
-plt.show()
+def get_raw(code, type_, clean_channels=False):
+    return _get_raw(subjects[code][type_], clean_channels=clean_channels)
 

@@ -194,16 +194,23 @@ def get_trial_data(fica, info, layout):
     return TrialData(components=components)
 
 
-def plot_components(components, layout):
+def plot_components(components, layout, average=False):
     # create figure for head topographies
-    fig_ = plt.figure()
-    for i, component in enumerate(components):
-        sensor_component = np.abs(component.sensor_stft)
-        tfr_ = mne.time_frequency.AverageTFR(component.info, sensor_component, 
-            range(sensor_component.shape[2]), component.freqs, 1)
 
-        axes = fig_.add_subplot(len(components), 1, i + 1)
-        mne.viz.plot_tfr_topomap(tfr_, layout=layout, axes=axes, show=False)
+    if average:
+        component = components[0]
+        component.source_stft = np.average([np.abs(comp.source_stft) for comp in components], axis=0)
+        components = [component]
+
+    if not average:
+        fig_ = plt.figure()
+        for i, component in enumerate(components):
+            sensor_component = np.abs(component.sensor_stft)
+            tfr_ = mne.time_frequency.AverageTFR(component.info, sensor_component, 
+                range(sensor_component.shape[2]), component.freqs, 1)
+
+            axes = fig_.add_subplot(len(components), 1, i + 1)
+            mne.viz.plot_tfr_topomap(tfr_, layout=layout, axes=axes, show=False)
 
     # create figure ica components
     fig_ = plt.figure()
@@ -223,8 +230,6 @@ def plot_components(components, layout):
 
         axes = fig_.add_subplot(len(components), 1, i + 1)
         tfr_.plot(picks=[0], axes=axes, show=False, mode='logratio')
-
-    plt.show()
 
 
 def cluster_components(subjects):
@@ -322,15 +327,32 @@ def main():
         print "Start pickling data.."
         pickle.dump(subjects, open(result_arg + "/.fica_epochs_clustered.p", "wb"))
 
-    import pdb; pdb.set_trace()
+    # 10s ennen miinus 10s jälkeen
+    # kaikkien yli, onko positiivinen
+    # ja kumoaako nollahypoteesin että sen pitäs olla 0
 
-    # plot_components(subjects[0].trials[0].components, layout)
+    done = False
+    while not done:
+        input_ = int(raw_input('Plot component: '))
+        if input_ == -1:
+            done = True
+            continue
+        else:
+            idx = input_
 
-    for i in range(COMPONENTS):
         int_components = []
         for subject in subjects:
-            int_components.append(subject.trials[0].components[i])
-        plot_components(int_components, layout)
+            if subject.type == 'novice':
+                continue
+            for trial in subject.trials:
+                int_components.append(trial.components[idx])
+
+        # plot_components(int_components, layout, average=True)
+        
+        plot_components(int_components[:len(int_components)/2], layout)
+        plot_components(int_components[len(int_components)/2:], layout)
+        plt.show()
+
 
 
 if __name__ == '__main__':

@@ -15,7 +15,7 @@ def _distance(component1, component2):
     image2 = component2.sensor_topo
 
     # distance of images
-    distance =  np.linalg.norm(np.abs(image1 - image2))
+    distance =  math.pow(np.linalg.norm(np.abs(image1 - image2)), 2)
 
     return distance
 
@@ -71,7 +71,7 @@ def _get_initial_state(data):
     """
 
     # take `amount` best solutions
-    amount = 5
+    amount = 20
 
     # create an index array
     solution = np.zeros((data.shape[0], amount, data.shape[1]))
@@ -132,8 +132,8 @@ def _anneal(components, solution):
     """
     old_cost = _cost(components, solution)
     T = 1.0
-    T_min = 0.0001
-    alpha = 0.9
+    T_min = 0.00001
+    alpha = 0.95
     while T > T_min:
         print str(T)
         idx = 1

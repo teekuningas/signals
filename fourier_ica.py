@@ -6,15 +6,19 @@ import numpy as np
 from lib.fourier_ica import FourierICA
 from lib.stft import STFTPlot
 from lib.utils import filter_triggers
+from lib.load import get_raw
 
-raw = mne.io.Raw('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH001_MED-raw.fif', preload=True)
+# raw = mne.io.Raw('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH001_MED-raw.fif', preload=True)
+raw = get_raw('KH001', 'med')
+
+# triggerit paikalleen ja tutkitaan viela betaa
 
 layout_fname = 'gsn_129.lout'
-layout_path = 'data/'
+layout_path = '/home/zairex/Code/cibr/materials/'
 layout = mne.channels.read_layout(layout_fname, layout_path)
 
-wsize = 2048
-n_components = 5
+wsize = 8192
+n_components = 8
 radius = 15
 sfreq = raw.info['sfreq']
 
@@ -27,7 +31,7 @@ raw.drop_channels(raw.info['ch_names'][128:] + raw.info['bads'])
 
 # calculate fourier-ica
 fica = FourierICA(wsize=wsize, n_components=n_components,
-                  sfreq=raw.info['sfreq'], hpass=4, lpass=30)
+                  sfreq=raw.info['sfreq'], hpass=16, lpass=30)
 fica.fit(raw._data[:, raw.first_samp:raw.last_samp])
 
 source_stft = fica.source_stft
@@ -53,21 +57,27 @@ for i in range(source_stft.shape[0]):
 
 # mock info
 info = raw.info.copy()
-info['chs'] = info['chs'][0:5]
-info['ch_names'] = info['ch_names'][0:5]
-info['nchan'] = 5
-
-import pdb; pdb.set_trace()
+info['chs'] = info['chs'][0:n_components]
+info['ch_names'] = info['ch_names'][0:n_components]
+info['nchan'] = n_components
 
 fig_ = plt.figure()
 position = 0
-window = 30
+window = 15
 
 def update_tfr_plot(position):
 
     fig_.clear()
     for i in range(source_stft.shape[0]):
-        times = np.arange(window * position, window * (position + 1), 1.0)
+
+        length_samples = source_stft.shape[2]
+        length_s = (raw.last_samp - raw.first_samp) / raw.info['sfreq']
+        scale = length_s / float(length_samples)
+
+        # find out times
+        times = np.arange(window * position, 
+                          window * (position + 1), 
+                          1.0) * scale
 
         # select subset of data
         data = np.abs(source_stft[:, :, window*position:window*(position+1)])
@@ -82,16 +92,16 @@ def update_tfr_plot(position):
 	tfr_.plot(picks=[i], axes=axes, show=False, mode='logratio')
 
         # add triggers
-        print triggers
         for trigger in triggers:
-            if (trigger >= window*(position+1)*sfreq 
-                    or trigger < window*position*sfreq):
+            x0 = window*position*scale*sfreq
+            x1 = window*(position+1)*scale*sfreq
+            if trigger >= x1 or trigger < x0:
                 continue
-            x = trigger - window*position
-            height = axes.get_ylim()[1] - axes.get_ylim()[0]
-            width = float(axes.get_xlim()[1] - axes.get_xlim()[0]) / 50
+
+            height = int(axes.get_ylim()[1] - axes.get_ylim()[0])
+            width = int(float(axes.get_xlim()[1] - axes.get_xlim()[0]) / 50)
             axes.add_patch(
-                patches.Rectangle((x - width / 2, 0.0), width, height)
+                patches.Rectangle((trigger - 2, 0.0), width, 1000)
             )
 
     plt.draw()
