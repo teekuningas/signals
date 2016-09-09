@@ -59,7 +59,7 @@ def _get_raw(filenames, clean_channels=False):
     raw.filter(l_freq=1, h_freq=100)
 
     if clean_channels:
-        picks = mne.pick_types(raw.info, eeg=True)
+        picks = mne.pick_types(raw.info, eeg=True, meg=True)
         raw.drop_channels([name for idx, name in enumerate(raw.info['ch_names'])
                            if idx not in picks])
 
