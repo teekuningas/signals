@@ -5,29 +5,30 @@ import numpy as np
 
 from lib.fourier_ica import FourierICA
 from lib.stft import STFTPlot
-from lib.utils import filter_triggers
 from lib.load import get_raw
 
 # raw = mne.io.Raw('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH001_MED-raw.fif', preload=True)
 raw = get_raw('KH001', 'med')
 
-# triggerit paikalleen ja tutkitaan viela betaa
-
-layout_fname = 'gsn_129.lout'
-layout_path = '/home/zairex/Code/cibr/materials/'
-layout = mne.channels.read_layout(layout_fname, layout_path)
+if [ch_name for ch_name in raw.info['ch_names'] if 'EEG' in ch_name]:
+    layout_fname = 'gsn_129.lout'
+    layout_path = '/home/zairex/Code/cibr/materials/'
+    layout = mne.channels.read_layout(layout_fname, layout_path)
+else:
+    layout = None
 
 wsize = 8192
 n_components = 8
-radius = 15
 sfreq = raw.info['sfreq']
 
 # find triggers
 triggers = mne.find_events(raw)[:, 0]
-triggers = filter_triggers(triggers, sfreq, raw.first_samp, raw.last_samp, radius*sfreq)
 
 # drop bad and non-data channels
-raw.drop_channels(raw.info['ch_names'][128:] + raw.info['bads'])
+picks = mne.pick_types(raw.info, eeg=True, meg=True)
+raw.drop_channels([name for idx, name in enumerate(raw.info['ch_names'])
+                       if idx not in picks])
+raw.drop_channels(raw.info['bads'])
 
 # calculate fourier-ica
 fica = FourierICA(wsize=wsize, n_components=n_components,
@@ -98,10 +99,9 @@ def update_tfr_plot(position):
             if trigger >= x1 or trigger < x0:
                 continue
 
-            height = int(axes.get_ylim()[1] - axes.get_ylim()[0])
             width = int(float(axes.get_xlim()[1] - axes.get_xlim()[0]) / 50)
             axes.add_patch(
-                patches.Rectangle((trigger - 2, 0.0), width, 1000)
+                patches.Rectangle((trigger - width/2, 0.0), width, 1000)
             )
 
     plt.draw()
