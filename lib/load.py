@@ -1,6 +1,9 @@
+import sys
+
 import mne
 
-folder = '/home/zairex/Code/cibr/data/MI_eggie/'
+raw_folder = '/home/zairex/Code/cibr/data/MI_eggie/'
+processed_folder = ''
 
 subjects = {
     'KH001': {
@@ -51,21 +54,36 @@ subjects = {
 }
 
 
-def _get_raw(filenames, clean_channels=False):
-    parts = [mne.io.read_raw_egi(folder + fname, preload=True) for fname in filenames]
+def _get_raw(filenames):
+    parts = [mne.io.read_raw_egi(raw_folder + fname, preload=True) 
+             for fname in filenames]
     raw = parts[0]
     raw.append(parts[1:])
 
     raw.filter(l_freq=1, h_freq=100)
 
-    if clean_channels:
-        picks = mne.pick_types(raw.info, eeg=True, meg=True)
-        raw.drop_channels([name for idx, name in enumerate(raw.info['ch_names'])
-                           if idx not in picks])
-
     return raw
 
 
-def get_raw(code, type_, clean_channels=False):
-    return _get_raw(subjects[code][type_], clean_channels=clean_channels)
+def get_raw(code, type_):
+    return _get_raw(subjects[code][type_])
 
+def cli_raws():
+    raws = []
+    args = sys.argv
+    for idx, arg in enumerate(args):
+        if arg == '--rawkw':
+            key_str = args[idx+1]
+            code, type_ = key_str.split(':')
+            raws.append(get_raw(code, type_))
+        if arg == '--rawfif':
+            path = args[idx+1]
+            raws.append(mne.io.Raw(path, preload=True))
+    return raws
+
+
+def load_layout():
+    layout_path = '/home/zairex/Code/cibr/materials/'
+    layout_filename = 'gsn_129.lout'
+    layout = mne.channels.read_layout(layout_filename, layout_path)
+    return layout
