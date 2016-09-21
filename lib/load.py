@@ -31,10 +31,30 @@ subjects = {
                 'MI_KH005_Meditaatio 201302.002'],
         'eoec': ['MI_EOEC_KH005 20130218 1711.raw']
     },
+    'KH006': {
+        'med': ['MI_meditaatio_KH006 201302.001',
+                'MI_meditaatio_KH006 201302.002'],
+        'eoec': ['MI_EOEC_2_KH006 20130219 1550.r']
+    },
     'KH007': {
         'med': ['MI_KH007_Meditaatio 201302.001',
                 'MI_KH007_Meditaatio 201302.002'],
         'eoec': ['MI_KH007_EOEC 20130220 0958.raw']
+    },
+    'KH008': {
+        'med': ['MI_KH008_Meditaatio 201302.001',
+                'MI_KH008_Meditaatio 201302.002'],
+        'eoec': ['MI_KH008_EOEC 20130221 1037.raw']
+    },
+    'KH009': {
+        'med': ['MI_KH009_meditaatio 201302.001',
+                'MI_KH009_meditaatio 201302.002'],
+        'eoec': ['MI_009_EOEC_oikea 20130227 1739']
+    },
+    'KH010': {
+        'med': ['MI_KH010_meditation 201303.001',
+                'MI_KH010_meditation 201303.002'],
+        'eoec': ['MI_KH010_EOEC 20130313 1758.raw']
     },
     'KH011': {
         'med': ['MI_KH011_MEDITAATIO 201306.001',
