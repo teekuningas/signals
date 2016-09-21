@@ -5,10 +5,12 @@ import numpy as np
 
 from lib.fourier_ica import FourierICA
 from lib.stft import STFTPlot
-from lib.load import get_raw
+from lib.load import cli_raws
 
-# raw = mne.io.Raw('/home/zairex/Code/cibr/data/graduprosessoidut/kokeneet/KH001_MED-raw.fif', preload=True)
-raw = get_raw('KH001', 'med')
+raws = cli_raws()
+
+raw = raws[0]
+raw.append(raws[1:])
 
 if [ch_name for ch_name in raw.info['ch_names'] if 'EEG' in ch_name]:
     layout_fname = 'gsn_129.lout'
@@ -18,7 +20,7 @@ else:
     layout = None
 
 wsize = 8192
-n_components = 8
+n_components = 18
 sfreq = raw.info['sfreq']
 
 # find triggers
@@ -32,7 +34,8 @@ raw.drop_channels(raw.info['bads'])
 
 # calculate fourier-ica
 fica = FourierICA(wsize=wsize, n_components=n_components,
-                  sfreq=raw.info['sfreq'], hpass=16, lpass=30)
+                  sfreq=raw.info['sfreq'], hpass=2, lpass=70,
+                  maxiter=5000)
 fica.fit(raw._data[:, raw.first_samp:raw.last_samp])
 
 source_stft = fica.source_stft
