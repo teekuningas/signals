@@ -132,7 +132,7 @@ class FourierICA(object):
         if self.maxiter:
             maxiter = self.maxiter
         else:
-            maxiter = max(100 * self.n_components, 2000)
+            maxiter = max(200 * self.n_components, 2000)
 
         if self.conveps:
             conveps = self.conveps
@@ -173,7 +173,9 @@ class FourierICA(object):
 
             # show something
             if j%30 == 0:
-                print ".",
+                print "Criterion:", str(1 - criterion), 
+                print "- Conveps:", str(conveps),
+                print "- i:", str(j), "- maxiter:", str(maxiter) 
                 sys.stdout.flush()
 
             # check if converged
