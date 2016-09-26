@@ -9,9 +9,6 @@ from scipy.ndimage.filters import convolve
 
 from lib.load import cli_raws
 from lib.load import get_raw
-from lib.load import load_layout
-
-from lib.utils import filter_triggers
 
 # get data
 raws = cli_raws()
