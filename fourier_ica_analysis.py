@@ -9,10 +9,12 @@ from lib.fourier_ica import FourierICA
 from lib.cluster import cluster_components as cluster_matrix
 from lib.load import load_layout
 from lib.load import get_raw
+from lib.component import ComponentPlot
 
+# kokkeile pelkalla initial statella.
 
-BAND = [6, 14]
-COMPONENTS = 8
+BAND = [5, 16]
+COMPONENTS = 12
 RADIUS = 15
 WSIZE = 8192
 
@@ -22,39 +24,39 @@ SUBJECTS = [
     ('KH001', 'med', 'experienced', 'preprocessed'),
     ('KH002', 'med', 'experienced', 'preprocessed'),
     ('KH003', 'med', 'experienced', 'preprocessed'),
-    ('KH004', 'med', 'experienced', 'preprocessed'),
     ('KH005', 'med', 'experienced', 'preprocessed'),
-#   ('KH007', 'med', 'experienced', 'preprocessed'),
-#   ('KH009', 'med', 'experienced', 'preprocessed'),
-#   ('KH016', 'med', 'experienced', 'preprocessed'),
-#   ('KH017', 'med', 'experienced', 'preprocessed'),
-#   ('KH024', 'med', 'experienced', 'preprocessed'),
-#   ('KH011', 'med', 'novice', 'preprocessed'),
-#   ('KH013', 'med', 'novice', 'preprocessed'),
-#   ('KH014', 'med', 'novice', 'preprocessed'),
-#   ('KH015', 'med', 'novice', 'preprocessed'),
-#   ('KH019', 'med', 'novice', 'preprocessed'),
-#   ('KH021', 'med', 'novice', 'preprocessed'),
-#   ('KH023', 'med', 'novice', 'preprocessed'),
-#   ('KH025', 'med', 'novice', 'preprocessed'),
-#   ('KH026', 'med', 'novice', 'preprocessed'),
-#   ('KH028', 'med', 'novice', 'preprocessed'),
-#   ('KH029', 'med', 'novice', 'preprocessed'),
-#   ('KH030', 'med', 'novice', 'preprocessed'),
-#   ('KH031', 'med', 'novice', 'preprocessed'),
+    ('KH007', 'med', 'experienced', 'preprocessed'),
+    ('KH009', 'med', 'experienced', 'preprocessed'),
+    ('KH016', 'med', 'experienced', 'preprocessed'),
+    ('KH017', 'med', 'experienced', 'preprocessed'),
+    ('KH024', 'med', 'experienced', 'preprocessed'),
+    ('KH011', 'med', 'novice', 'preprocessed'),
+    ('KH013', 'med', 'novice', 'preprocessed'),
+    ('KH014', 'med', 'novice', 'preprocessed'),
+    ('KH015', 'med', 'novice', 'preprocessed'),
+    ('KH019', 'med', 'novice', 'preprocessed'),
+    ('KH021', 'med', 'novice', 'preprocessed'),
+    ('KH023', 'med', 'novice', 'preprocessed'),
+    ('KH025', 'med', 'novice', 'preprocessed'),
+    ('KH026', 'med', 'novice', 'preprocessed'),
+    ('KH028', 'med', 'novice', 'preprocessed'),
+    ('KH029', 'med', 'novice', 'preprocessed'),
+    ('KH030', 'med', 'novice', 'preprocessed'),
+    ('KH031', 'med', 'novice', 'preprocessed'),
 ]
 
 
 class ComponentData(object):
     """
     """
-    def __init__(self, source_stft, sensor_stft, sensor_topo, source_psd, freqs, info):
+    def __init__(self, source_stft, sensor_stft, sensor_topo, source_psd, freqs, length, info):
         self.source_stft = source_stft
         self.sensor_stft = sensor_stft
         self.source_psd = source_psd
         self.sensor_topo = sensor_topo
         self.freqs = freqs
         self.info = info
+        self.length = length
 
 
 class SubjectData(object):
@@ -64,6 +66,11 @@ class SubjectData(object):
         self.components = components
         self.path = path
         self.type = type_
+
+
+def get_components_by_index(subjects, indices):
+    import pdb; pdb.set_trace()
+    print "kissa"
 
 
 def _filter_triggers(triggers, sfreq, start, end):
@@ -150,7 +157,7 @@ def _create_topo(sensor_stft, layout, info):
     return image
 
 
-def get_components(fica, info, layout):
+def get_components(fica, info, length, layout):
     source_stft = fica.source_stft
 
     components = []
@@ -165,13 +172,14 @@ def get_components(fica, info, layout):
             sensor_topo=sensor_topo,
             source_psd=source_psd,
             freqs=fica.freqs,
+            length=length,
             info=info.copy(),
         )
         components.append(component_data)
     return components
 
 
-def plot_components(components, layout, average=False):
+def plot_components(components, layout):
 
     # create figure for head topographies
     fig_ = plt.figure()
@@ -183,24 +191,28 @@ def plot_components(components, layout, average=False):
         axes = fig_.add_subplot(len(components), 1, i + 1)
         mne.viz.plot_tfr_topomap(tfr_, layout=layout, axes=axes, show=False)
 
-    # create figure ica components
     fig_ = plt.figure()
     for i, component in enumerate(components):
-
-        # mock info
-        info = component.info.copy()
-        info['chs'] = [info['chs'][0]]
-
-        rad = RADIUS
-        data = np.power(np.abs((component.source_stft)[np.newaxis, :]), 2)
-
-        times = np.arange(-rad, rad, float(rad*2)/data.shape[2])
-        times = times / info['sfreq']
-        tfr_ = mne.time_frequency.AverageTFR(info, data, 
-            times, component.freqs, 1)
-
+        y = component.source_psd
+        x = component.freqs
         axes = fig_.add_subplot(len(components), 1, i + 1)
-        tfr_.plot(picks=[0], axes=axes, show=False)
+        axes.plot(x, y)
+
+    # create figure ica components
+    len_ = min([component.source_stft.shape[1] for component in components])
+    source_stft = np.array([component.source_stft[:, 0:len_] 
+                            for component in components])
+
+    component = components[0]
+    freqs = component.freqs
+    length = component.length
+
+    info = component.info.copy()
+    info['chs'] = info['chs'][0:len(components)]
+    info['ch_names'] = info['ch_names'][0:len(components)]
+    info['nchan'] = len(components)
+
+    cp = ComponentPlot(source_stft, freqs, [], 0, len(components), info, length)
 
     plt.show()
 
@@ -238,6 +250,8 @@ def main():
 
     layout = load_layout()
 
+    import pdb; pdb.set_trace()
+
     print "Reading and processing data from files.."
     subjects = []
 
@@ -254,22 +268,35 @@ def main():
                           sfreq=raw.info['sfreq'], hpass=BAND[0], lpass=BAND[1])
         fica.fit(raw._data[:, raw.first_samp:raw.last_samp])
 
-        components = get_components(fica, raw.info, layout)
+        components = get_components(fica, raw.info, 
+                                    raw.last_samp-raw.first_samp, layout)
 
         subject = SubjectData(components=components, path=fname, 
                               type_=subject_type)
         subjects.append(subject)
 
-    subjects = cluster_components(subjects)
+    # subjects = cluster_components(subjects)
+    indices = []
+    for subject in subjects:
+        plot_components(subject.components, layout)
+        input_ = raw_input("Which component to use: ")
+        indices.append(int(input_))
 
-    while True:
-        input_ = raw_input("Which component to plot: ")
-        if input_ == 'q':
-            break
-        components_to_plot = [subject.components[int(input_)] for subject in subjects]
-        plot_components(components_to_plot, layout)
+    components = [subject.components[indices[idx]] 
+                  for idx, subject in enumerate(subjects)]
 
-    # epoch stuff here
+    import pdb; pdb.set_trace()
+    import pickle
+    pickle.dump(components, open(".all_components.p", "wb"))
+
+
+
+#   while True:
+#       input_ = raw_input("Which component to plot: ")
+#       if input_ == 'q':
+#           break
+#       components_to_plot = [subject.components[int(input_)] for subject in subjects]
+#       plot_components(components_to_plot, layout)
 
     import pdb; pdb.set_trace()
     print "kissa"
