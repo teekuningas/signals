@@ -11,11 +11,17 @@ def _distance(component1, component2):
     """
     """
 
+    # distance of images
     image1 = component1.sensor_topo
     image2 = component2.sensor_topo
+    im_distance =  math.pow(np.linalg.norm(np.abs(image1 - image2)), 2)
 
-    # distance of images
-    distance =  math.pow(np.linalg.norm(np.abs(image1 - image2)), 2)
+    # psd distance
+    psd1 = component1.source_psd
+    psd2 = component2.source_psd
+    psd_distance = math.pow(np.linalg.norm(np.abs(psd1 - psd2)), 2)
+
+    distance = im_distance + psd_distance / 75.0
 
     return distance
 
@@ -169,7 +175,8 @@ def cluster_components(components):
     initial_state = _get_initial_state(np_components)
 
     print "Do simulated annealing.."
-    solution = _anneal(np_components, initial_state)
+    # solution = _anneal(np_components, initial_state)
+    solution = initial_state
 
     for i in range(len(components)):
         components[i] = list(np_components[i, :][solution[i, 0]])
