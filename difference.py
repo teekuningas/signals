@@ -41,8 +41,6 @@ def main(paths):
     datasets = [raw._data for raw in raw_objects]
     difference_plot = DifferencePlot(datasets, ch_names=ch_names, window_width=time_series_size, window_height=5)
 
-    import pdb; pdb.set_trace()
-
     # plot power spectrum
     psds = [mne.time_frequency.psd.psd_welch(raw, fmin=0, fmax=20) for raw in raw_objects]
     x_range = psds[0][1]
