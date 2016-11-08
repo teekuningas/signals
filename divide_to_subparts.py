@@ -18,7 +18,7 @@ def sliding_crop(raw, interval):
     """ Slides data backwards and then crops to get a clean result """
     start = raw.time_as_index(interval[0])
     end = raw.time_as_index(interval[1])
-    part = deepcopy(raw)
+    part = raw.copy()
     part._data = raw._data[:, start:end]
     part = part.crop(tmin=0, tmax=interval[1]-interval[0]-1)
     return part
