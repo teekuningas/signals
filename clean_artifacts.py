@@ -6,6 +6,8 @@ import mne
 import numpy as np
 import sys
 
+from lib.load import cli_raws
+
 
 def read_raw(filename):
     if filename.endswith('.fif'):
@@ -25,13 +27,13 @@ def read_raw(filename):
                 idx += 1
     return raw
 
-def main(from_file, to_file):
+def main(to_file):
 
     layout_fname = 'gsn_129.lout'
     layout_path = '/home/zairex/Code/cibr/materials/'
     layout = mne.channels.read_layout(layout_fname, layout_path)
 
-    raw = read_raw(from_file)
+    raw = cli_raws()[0]
 
     raw.filter(l_freq=1, h_freq=100)
 
@@ -48,11 +50,12 @@ def main(from_file, to_file):
     ica.plot_components(layout=layout, show=False)
     sources.plot()
 
-    indices = raw_input('Please enter indices (starts from zero) of '
+    indices = raw_input('Please enter indices (starts from one) of '
                         'ICA components to be zeroed out '
                         '(separated with spaces, empty for none): ')
     if indices:
         indices = map(int, indices.split(' '))
+        indices = [i-1 for i in indices]
 
         # project out selected ica components
         ica.apply(raw, exclude=indices)
@@ -67,4 +70,4 @@ def main(from_file, to_file):
 
 if __name__ == '__main__':
     cla = sys.argv
-    main(cla[1], cla[2])
+    main(cla[-1])
