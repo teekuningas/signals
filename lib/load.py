@@ -114,12 +114,12 @@ subjects = {
     'KH022': {
         'med': ['MI_KH22_meditaatio 2013112.001',
                 'MI_KH22_meditaatio 2013112.002'],
-        'eoec': ['MI_KH22_eoec 20131127 1137.raw']
+        'eoec': ['MI_KH22_eoec 20131127 1357.raw']
     },
     'KH023': {
         'med': ['MI_KH23_meditaatio 2014011.001',
                 'MI_KH23_meditaatio 2014011.002'],
-        'eoec': ['MI_KH23_EOEC 20130113 1034.raw']
+        'eoec': ['MI_KH23_EOEC 20140113 1034.raw']
     },
     'KH024': {
         'med': ['MI_KH24_meditaatio 2014011.001',
@@ -161,13 +161,6 @@ subjects = {
                 'MI_KH31_meditaatio 2014021.002'],
         'eoec': ['MI_KH31_EOEC 20140214 1404.raw']
     },
-
-
-
-
-
-
-
 
 
 }
