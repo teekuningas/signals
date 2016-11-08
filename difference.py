@@ -31,14 +31,20 @@ def main(paths):
         power_series_size = 50
 
     raw_objects = [read_raw(path) for path in paths]
-    
+
+    for raw in raw_objects:
+        raw.drop_channels([ch_name for idx, ch_name in enumerate(raw.info['ch_names'])
+                           if idx not in mne.pick_types(raw.info, meg=True, eeg=True)])
+
     # plot time series
     ch_names = raw_objects[0].info['ch_names']
     datasets = [raw._data for raw in raw_objects]
     difference_plot = DifferencePlot(datasets, ch_names=ch_names, window_width=time_series_size, window_height=5)
 
+    import pdb; pdb.set_trace()
+
     # plot power spectrum
-    psds = [mne.time_frequency.psd.compute_raw_psd(raw) for raw in raw_objects]
+    psds = [mne.time_frequency.psd.psd_welch(raw, fmin=0, fmax=20) for raw in raw_objects]
     x_range = psds[0][1]
     datasets = [psd[0] for psd in psds]
     difference_plot = DifferencePlot(datasets, ch_names=ch_names, x_range=x_range,
