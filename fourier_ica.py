@@ -20,8 +20,8 @@ else:
     layout = None
 
 wsize = 8192
-n_components = 10
-page = 5
+n_components = 8
+page = 8
 
 # find triggers
 try:
@@ -38,7 +38,7 @@ raw.drop_channels(raw.info['bads'])
 
 # calculate fourier-ica
 fica = FourierICA(wsize=wsize, n_components=n_components,
-                  sfreq=raw.info['sfreq'], hpass=7, lpass=12,
+                  sfreq=raw.info['sfreq'], hpass=7, lpass=13,
                   maxiter=7000)
 fica.fit(raw._data[:, raw.first_samp:raw.last_samp])
 
