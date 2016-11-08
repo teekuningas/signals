@@ -7,10 +7,10 @@ import numpy as np
 class ComponentPlot(object):
 
     def __init__(self, source_stft, freqs, triggers, current_row, 
-                 rows, info, raw_length):
+                 rows, info, raw_length, window=15):
         self.fig = plt.figure()
         self.position = 0
-        self.window = 15
+        self.window = window
         self.current_row = current_row
         self.rows = rows
         self.source_stft = source_stft
