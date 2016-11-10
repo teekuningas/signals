@@ -62,7 +62,7 @@ def remove_bad_parts(raw):
         idx -= 1
 
     timepoints.sort()
-    timepoints.append(math.floor(raw.times[raw.last_samp]))
+    timepoints.append(math.floor(raw.times[raw.last_samp - raw.first_samp]))
 
     # find good intervals
     min_length = 10
