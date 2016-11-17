@@ -1,11 +1,7 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import mne
 import math
 from mne.time_frequency import psd_welch
-from mne.viz import iter_topography
-
-from load import load_layout
 
 
 def sliding_crop(raw, interval):
@@ -22,8 +18,7 @@ def remove_bad_parts(raw):
     """ find intervals that have outlying spectral density and remove them
     """
 
-    picks = mne.pick_types(raw.info, eeg=True)
-    picks = picks[0:128]
+    picks = mne.pick_types(raw.info, eeg=True, meg=True)
 
     block_size = 5
     length = math.floor(raw._data.shape[1] / raw.info['sfreq'])
