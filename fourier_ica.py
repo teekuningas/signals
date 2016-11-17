@@ -1,18 +1,16 @@
+import sys
+
 import mne
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
 
 from lib.fourier_ica import FourierICA
-from lib.load import cli_raws
 from lib.component import ComponentPlot
 
-raws = cli_raws()
+raw = mne.io.Raw(sys.argv[-1], preload=True)
 
-raw = raws[0]
-raw.append(raws[1:])
-
-if [ch_name for ch_name in raw.info['ch_names'] if 'EEG' in ch_name]:
+if mne.pick_types(raw.info, eeg=True, meg=False):
     layout_fname = 'gsn_129.lout'
     layout_path = '/home/zairex/Code/cibr/materials/'
     layout = mne.channels.read_layout(layout_fname, layout_path)
@@ -25,7 +23,7 @@ page = 8
 
 # find triggers
 try:
-    triggers = mne.find_events(raw)[:, 0]
+    triggers = [event for event in mne.find_events(raw)[:, 0] if event[1] == 0]
 except:
     print "No triggers found"
     triggers = []
