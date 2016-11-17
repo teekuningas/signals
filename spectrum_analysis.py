@@ -75,8 +75,6 @@ layout = load_layout()
 if MEG:
     layout = None
 
-import pdb; pdb.set_trace()
-
 for ax, idx in iter_topography(raw.info, layout=layout,
                                fig_facecolor='white',
                                axis_facecolor='white',
@@ -104,8 +102,8 @@ if SAVE and not MEG:
         'C3': [36, 41, 35, 29, 30, 37, 42],
     }
       
-    mind_alpha = mind_psds[:, (mind_freqs > 0) & (mind_freqs < 12)]
-    rest_alpha = rest_psds[:, (rest_freqs > 0) & (rest_freqs < 12)]
+    mind_alpha = mind_psds[:, (mind_freqs > 8) & (mind_freqs < 12)]
+    rest_alpha = rest_psds[:, (rest_freqs > 8) & (rest_freqs < 12)]
     mind_means = np.mean(mind_alpha, axis=1)
     rest_means = np.mean(rest_alpha, axis=1)
 
