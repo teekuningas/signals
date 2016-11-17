@@ -10,11 +10,12 @@ import matplotlib.pyplot as plt
 filenames = sys.argv[1:]
 
 raw = mne.io.Raw(filenames, preload=True)
+
 raw.filter(l_freq=1, h_freq=100, n_jobs=2)
 
 print "Finding events"
 
-events = mne.find_events(raw)
+events = mne.find_events(raw, shortest_event=1)
 
 picks = mne.pick_types(raw.info, meg='grad')
 raw.drop_channels([ch_name for idx, ch_name in enumerate(raw.info['ch_names']) 
@@ -29,7 +30,7 @@ def get_spectrum(trigger):
             intervals.append((start, end))
 
     spectra = [psd_welch(raw, tmin=ival[0], tmax=ival[1], n_jobs=3,
-                         fmin=1, fmax=80, n_fft=2048) 
+                         fmin=1, fmax=40, n_fft=2048) 
                for ival in intervals]
 
     freqs = spectra[0][1]
@@ -67,3 +68,52 @@ for ax, idx in iter_topography(raw.info,
     ax.plot(rest_spectrum[idx], color='yellow')
 
 plt.show()
+
+selections = {
+    'Oz': ['211', '192', '234', '204', '203'],
+    'Pz': ['183', '224', '201', '202'],
+    'Cz': ['071', '072', '074', '073'],
+    'Fz': ['061', '101', '102', '064', '062', '103'],
+    'C4': ['113', '134', '222', '241'],
+    'C3': ['023', '044', '162', '181'],
+}
+
+for key, value in selections.items():
+    selections[key] = [idx for idx, ch_name in 
+                       enumerate(raw.info['ch_names'])
+                       if ch_name[3:6] in value]
+
+mind_alpha = mind_spectrum[:, (freqs > 8) & (freqs < 12)]
+rest_alpha = rest_spectrum[:, (freqs > 8) & (freqs < 12)]
+plan_alpha = plan_spectrum[:, (freqs > 8) & (freqs < 12)]
+anxious_alpha = anxious_spectrum[:, (freqs > 8) & (freqs < 12)]
+mind_means = np.mean(mind_alpha, axis=1)
+rest_means = np.mean(rest_alpha, axis=1)
+plan_means = np.mean(plan_alpha, axis=1)
+anxious_means = np.mean(anxious_alpha, axis=1)
+
+data = []
+header = []
+
+for key, value in selections.items():
+    data.append(np.mean(mind_means[value]))
+    header.append('mind_' + str(key).lower())
+
+for key, value in selections.items():
+    data.append(np.mean(rest_means[value]))
+    header.append('rest_' + str(key).lower())
+
+for key, value in selections.items():
+    data.append(np.mean(plan_means[value]))
+    header.append('plan_' + str(key).lower())
+
+for key, value in selections.items():
+    data.append(np.mean(anxious_means[value]))
+    header.append('anxious_' + str(key).lower())
+
+
+fname = filenames[0].split('/')[-1].split(".")[0]
+
+path = 'data/plananxious/stats/' + fname + '.csv'
+print "Saving: " + path
+np.savetxt(path, np.array([header, data]), fmt="%s", delimiter=',')
