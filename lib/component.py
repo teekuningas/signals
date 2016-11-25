@@ -47,12 +47,9 @@ class ComponentPlot(object):
                               window * (position + 1), 
                               1.0) * scale
 
-            # convert phase and amplitude information to power
-            data = np.power(np.abs(source_stft), 2)
-
-            # select min and max values for the plot colors
-            max_ = np.max(data[i, :, :])
-            min_ = np.min(data) - (max_ - np.min(data))
+            # data = np.power(np.abs(source_stft), 2)
+            data = np.abs(source_stft)
+            # data = 10 * np.log10(np.abs(source_stft))
 
             # select subset of data
             data = data[:, :, window*position:window*(position+1)]
@@ -65,8 +62,8 @@ class ComponentPlot(object):
             tfr_ = mne.time_frequency.AverageTFR(info, data, times, freqs, 1)
             axes = self.fig.add_subplot(rows, 1, i + 1)
             tfr_.plot(picks=[current_row + i], axes=axes, show=False, 
-                      vmin=min_, vmax=max_,
-                      title=(str(current_row) + ' - ' + str(current_row+rows)))
+                      title=(str(current_row) + ' - ' + str(current_row+rows)),
+                      baseline=(None, None))
 
             # add triggers
             for trigger in triggers:
