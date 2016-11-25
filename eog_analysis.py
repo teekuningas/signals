@@ -5,17 +5,18 @@ import matplotlib.pyplot as plt
 
 import mne
 
-fname = sys.argv[-1]
+fnames = sys.argv[1:]
 
-PLOTS = 6
+raws = [mne.io.Raw(fname, preload=True) for fname in fnames]
+raw = mne.concatenate_raws(raws)
 
-raw = mne.io.Raw(fname, preload=True)
+PLOTS = 1
 
 picks = mne.pick_types(raw.info, meg=False, eog=True)
 
 eog_data = raw._data[picks][0]
 
-events = mne.find_events(raw)
+events = mne.find_events(raw, shortest_event=1)
 
 event_data = np.zeros((len(eog_data),))
 for event in events:
