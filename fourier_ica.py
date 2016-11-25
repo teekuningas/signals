@@ -8,14 +8,16 @@ import numpy as np
 from lib.fourier_ica import FourierICA
 from lib.component import ComponentPlot
 
+MEG = False
+
 raw = mne.io.Raw(sys.argv[-1], preload=True)
 
-if mne.pick_types(raw.info, eeg=True, meg=False):
+if MEG:
+    layout = None
+else:
     layout_fname = 'gsn_129.lout'
     layout_path = '/home/zairex/Code/cibr/materials/'
     layout = mne.channels.read_layout(layout_fname, layout_path)
-else:
-    layout = None
 
 wsize = 8192
 n_components = 8
@@ -23,7 +25,7 @@ page = 8
 
 # find triggers
 try:
-    triggers = [event for event in mne.find_events(raw)[:, 0] if event[1] == 0]
+    triggers = [event[0] for event in mne.find_events(raw) if event[1] == 0]
 except:
     print "No triggers found"
     triggers = []
@@ -36,7 +38,7 @@ raw.drop_channels(raw.info['bads'])
 
 # calculate fourier-ica
 fica = FourierICA(wsize=wsize, n_components=n_components,
-                  sfreq=raw.info['sfreq'], hpass=7, lpass=13,
+                  sfreq=raw.info['sfreq'], hpass=5, lpass=30,
                   maxiter=7000)
 fica.fit(raw._data[:, raw.first_samp:raw.last_samp])
 
