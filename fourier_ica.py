@@ -19,7 +19,7 @@ else:
     layout_path = '/home/zairex/Code/cibr/materials/'
     layout = mne.channels.read_layout(layout_fname, layout_path)
 
-wsize = 8192
+wsize = 4096
 n_components = 8
 page = 8
 

@@ -10,22 +10,16 @@ from lib.component import ComponentPlot
 from lib.load import load_layout
 
 
-MEG = False
-DATA = '/home/zairex/Code/cibr/analysis/signals/data/ica_spectra/'
+DATA = '/home/zairex/Code/cibr/analysis/signals/data/ica_plan_spectra/'
 N_COMPONENTS = 10
 PAGE = 10
 
 raws = [
-    mne.io.Raw(sys.argv[-2], preload=True, add_eeg_ref=False),
     mne.io.Raw(sys.argv[-1], preload=True, add_eeg_ref=False),
 ]
 
 for raw in raws:
     raw.add_proj([], remove_existing=True)
-
-if not MEG:
-    # crop away eyes closed resting
-    raws[0].crop(tmin=0, tmax=90)
 
 # drop bad and non-data channels
 for raw in raws:
@@ -36,20 +30,20 @@ for raw in raws:
 
 raw = mne.concatenate_raws(raws)
 
-if MEG:
-    layout = None
-else:
-    layout = load_layout()
+layout = load_layout(MEG=True)
 
 wsize = 4096
 sfreq = raw.info['sfreq']
-states = [(0, 85), (95, len(raw.times)/sfreq)]
+
+states = []
+
+events = mne.find_events(raw)
 
 # calculate fourier-ica
 fica = FourierICA(wsize=wsize, n_components=N_COMPONENTS,
                   sfreq=sfreq, hpass=4, lpass=30,
                   maxiter=7000)
-fica.fit(raw._data[:, raw.first_samp:raw.last_samp])
+fica.fit(raw._data)
 
 source_stft = fica.source_stft
 freqs = fica.freqs

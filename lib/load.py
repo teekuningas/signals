@@ -194,8 +194,11 @@ def cli_raws():
     return raws
 
 
-def load_layout():
+def load_layout(MEG=False):
     layout_path = '/home/zairex/Code/cibr/materials/'
-    layout_filename = 'gsn_129.lout'
+    if MEG:
+        layout_filename = 'neuromag306all.lay'
+    else:
+        layout_filename = 'gsn_129.lout'
     layout = mne.channels.read_layout(layout_filename, layout_path)
     return layout

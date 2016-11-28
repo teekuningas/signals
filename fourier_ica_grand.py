@@ -10,12 +10,12 @@ from lib.fourier_ica import FourierICA
 from lib.cluster import cluster_components as cluster_matrix
 from lib.load import load_layout
 from lib.load import get_raw
-from lib.component import ComponentPlot
 from lib.abstract import ComponentData
+from lib.abstract import plot_components
 
-MEG = False
+MEG = True
 BAND = [1, 20]
-COMPONENTS = 14
+COMPONENTS = 18
 WSIZE = 2048
 
 PATH = '/home/zairex/Code/cibr/analysis/signals/data/fica/'
@@ -68,53 +68,11 @@ def get_components(fica, info, length, layout):
     return components
 
 
-def plot_components(components, layout):
-
-    # create figure for head topographies
-    fig_ = plt.figure()
-    for i, component in enumerate(components):
-        sensor_component = np.abs(component.sensor_stft)
-        tfr_ = mne.time_frequency.AverageTFR(component.info, sensor_component, 
-            range(sensor_component.shape[2]), component.freqs, 1)
-
-        axes = fig_.add_subplot(len(components), 1, i + 1)
-        mne.viz.plot_tfr_topomap(tfr_, layout=layout, axes=axes, show=False)
-
-    # create figure for psd
-    fig_ = plt.figure()
-    for i, component in enumerate(components):
-        y = component.source_psd
-        x = component.freqs
-        axes = fig_.add_subplot(len(components), 1, i + 1)
-        axes.plot(x, y)
-
-    # create figure ica components
-    len_ = min([component.source_stft.shape[1] for component in components])
-    source_stft = np.array([component.source_stft[:, 0:len_] 
-                            for component in components])
-
-    component = components[0]
-    freqs = component.freqs
-    length = component.length
-
-    info = component.info.copy()
-    info['chs'] = info['chs'][0:len(components)]
-    info['ch_names'] = info['ch_names'][0:len(components)]
-    info['nchan'] = len(components)
-
-    cp = ComponentPlot(source_stft, freqs, [], 0, len(components), info, length)
-
-    plt.show(block=False)
-
-
 def main():
 
     mne.utils.set_log_level('ERROR')
 
-    if MEG:
-        layout = None
-    else:
-        layout = load_layout()
+    layout = load_layout(MEG)
 
     print "Reading and processing data from files.."
 
@@ -137,11 +95,11 @@ def main():
 
         components = get_components(fica, raw.info, len(raw.times), layout)
 
-        plot_components(components, layout)
-        input_ = int(raw_input("Which component to use: ")) - 1
+        handle = plot_components(components, layout)
+        input_ = int(raw_input("Which component to use: "))
         if input_ == -1:
             continue
-        new_components.append(components[input_])
+        new_components.append(components[input_ - 1])
 
     import pdb; pdb.set_trace()
     print "kissa"

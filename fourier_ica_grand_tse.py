@@ -9,21 +9,16 @@ import numpy as np
 from lib.fourier_ica import FourierICA
 from lib.cluster import cluster_components as cluster_matrix
 from lib.load import load_layout
-from lib.load import get_raw
-from lib.component import ComponentPlot
-from lib.abstract import ComponentData
+from lib.abstract import plot_components
 
 
-MEG = False
+MEG = True
 LIMITS = [20, 10]
-PATH = '/home/zairex/Code/cibr/analysis/signals/data/fica/'
 
 
 def _filter_triggers(triggers, sfreq, start, end):
     """
-    check if this trigger is ok with following conditions:
-      * it is not in the box of others
-      * it is at least enough seconds away from start or end
+    remove triggers that are too close to start, end or others
     """
 
     left_limit = LIMITS[0] * sfreq
@@ -83,7 +78,8 @@ def _get_epochs(component, tse):
     sfreq = raw.info['sfreq']
 
     # find and filter triggers
-    triggers = mne.find_events(raw)[:, 0]
+    events = [event for event in mne.find_events(raw) if event[1] == 0]
+    triggers = np.array(events)[:, 0]
     triggers = _filter_triggers(triggers, sfreq, raw.first_samp, raw.last_samp)
     triggers = [trigger - raw.first_samp for trigger in triggers]
 
@@ -113,17 +109,14 @@ def main():
 
     mne.utils.set_log_level('ERROR')
 
-    if MEG:
-        layout = None
-    else:
-        layout = load_layout()
+    layout = load_layout(MEG)
 
-    filenames = os.listdir(PATH)
+    filenames = sys.argv[1:]
 
     components = []
     for fname in filenames:
         print "Opening " + fname
-        part = pickle.load(open(PATH + fname, "rb"))
+        part = pickle.load(open(fname, "rb"))
         components.extend(part)
 
     tses = []
@@ -137,11 +130,9 @@ def main():
         for j, epoch in enumerate(component_epochs):
             component_epochs[j] = epoch / np.mean(tses[i])
 
-        if component_epochs:
-            epochs.append(component_epochs)
+        epochs.extend(component_epochs)
 
-    for idx in range(len(epochs)):
-        epochs[idx] = np.average(epochs[idx], axis=0)
+    print "Total: " + str(len(epochs)) + " epochs."
 
     average = np.mean(epochs, axis=0)
 
