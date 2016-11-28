@@ -1,5 +1,6 @@
 import pickle
 import sys
+import os
 
 import mne
 import matplotlib.pyplot as plt
@@ -10,126 +11,14 @@ from lib.cluster import cluster_components as cluster_matrix
 from lib.load import load_layout
 from lib.load import get_raw
 from lib.component import ComponentPlot
+from lib.abstract import ComponentData
 
-# kokkeile pelkalla initial statella.
+MEG = False
+BAND = [1, 20]
+COMPONENTS = 14
+WSIZE = 2048
 
-BAND = [5, 16]
-COMPONENTS = 12
-RADIUS = 15
-WSIZE = 8192
-
-RESULT_FOLDER = '/home/zairex/Code/cibr/analysis/data'
-
-SUBJECTS = [
-    ('KH001', 'med', 'experienced', 'preprocessed'),
-    ('KH002', 'med', 'experienced', 'preprocessed'),
-    ('KH003', 'med', 'experienced', 'preprocessed'),
-    ('KH005', 'med', 'experienced', 'preprocessed'),
-    ('KH007', 'med', 'experienced', 'preprocessed'),
-    ('KH009', 'med', 'experienced', 'preprocessed'),
-    ('KH016', 'med', 'experienced', 'preprocessed'),
-    ('KH017', 'med', 'experienced', 'preprocessed'),
-    ('KH024', 'med', 'experienced', 'preprocessed'),
-    ('KH011', 'med', 'novice', 'preprocessed'),
-    ('KH013', 'med', 'novice', 'preprocessed'),
-    ('KH014', 'med', 'novice', 'preprocessed'),
-    ('KH015', 'med', 'novice', 'preprocessed'),
-    ('KH019', 'med', 'novice', 'preprocessed'),
-    ('KH021', 'med', 'novice', 'preprocessed'),
-    ('KH023', 'med', 'novice', 'preprocessed'),
-    ('KH025', 'med', 'novice', 'preprocessed'),
-    ('KH026', 'med', 'novice', 'preprocessed'),
-    ('KH028', 'med', 'novice', 'preprocessed'),
-    ('KH029', 'med', 'novice', 'preprocessed'),
-    ('KH030', 'med', 'novice', 'preprocessed'),
-    ('KH031', 'med', 'novice', 'preprocessed'),
-]
-
-
-class ComponentData(object):
-    """
-    """
-    def __init__(self, source_stft, sensor_stft, sensor_topo, source_psd, freqs, length, info):
-        self.source_stft = source_stft
-        self.sensor_stft = sensor_stft
-        self.source_psd = source_psd
-        self.sensor_topo = sensor_topo
-        self.freqs = freqs
-        self.info = info
-        self.length = length
-
-
-class SubjectData(object):
-    """
-    """
-    def __init__(self, components, path, type_):
-        self.components = components
-        self.path = path
-        self.type = type_
-
-
-def get_components_by_index(subjects, indices):
-    import pdb; pdb.set_trace()
-    print "kissa"
-
-
-def _filter_triggers(triggers, sfreq, start, end):
-    """
-    check if this trigger is ok with following conditions:
-      * it is at least ``rad`` seconds away from other triggers
-      * it is at least ``rad`` seconds away from start or end
-    """
-
-    rad = RADIUS * sfreq
-
-    valid_triggers = []
-    for trigger in triggers:
-
-        if trigger < start + rad:
-            continue
-
-        if trigger > end - rad:
-            continue
-
-        valid = True
-
-        for other in triggers:
-            # don't compare to itself
-            if other == trigger:
-                continue
-
-            if trigger < other + rad and trigger > other - rad:
-                valid = False
-
-        if not valid:
-            continue
-
-        valid_triggers.append(trigger)
-
-    return np.array(valid_triggers, dtype=triggers.dtype)
-
-
-def get_epochs(raw):
-    sfreq = raw.info['sfreq']
-    rad = RADIUS*sfreq
-
-    # find and filter triggers
-    triggers = mne.find_events(raw)[:, 0]
-    triggers = _filter_triggers(triggers, sfreq, raw.first_samp, raw.last_samp)
-
-    # drop bad and non-data channels
-    raw.drop_channels(raw.info['ch_names'][128:] + raw.info['bads'])
-
-    data = raw._data
-
-    # create epochs
-    epochs = []
-    for trigger in triggers:
-        epochs.append(data[:, int(trigger-rad):int(trigger+rad)])
-
-    print str(len(epochs)) + " epochs found!"
-
-    return epochs
+PATH = '/home/zairex/Code/cibr/analysis/signals/data/fica/'
 
 
 def _create_image(topo, layout, info, size=32):
@@ -165,7 +54,7 @@ def get_components(fica, info, length, layout):
         source_component = source_stft[i] 
         sensor_stft = fica.component_in_sensor_space(i)
         sensor_topo = _create_topo(sensor_stft, layout, info)
-        source_psd = np.mean(np.power(np.abs(source_stft[i]), 2), axis=-1)
+        source_psd = np.mean(10 * np.log10(np.abs(source_stft[i])), axis=-1)
         component_data = ComponentData(
             source_stft=source_component,
             sensor_stft=sensor_stft,
@@ -191,6 +80,7 @@ def plot_components(components, layout):
         axes = fig_.add_subplot(len(components), 1, i + 1)
         mne.viz.plot_tfr_topomap(tfr_, layout=layout, axes=axes, show=False)
 
+    # create figure for psd
     fig_ = plt.figure()
     for i, component in enumerate(components):
         y = component.source_psd
@@ -214,89 +104,44 @@ def plot_components(components, layout):
 
     cp = ComponentPlot(source_stft, freqs, [], 0, len(components), info, length)
 
-    plt.show()
-
-
-def cluster_components(subjects):
-
-    # first create a flattened matrix out of subjects' component hierarchy
-    component_matrix = []
-    for subject in subjects:
-        component_matrix.append(subject.components)
-
-    # do the actual clustering
-    ordered_matrix = cluster_matrix(component_matrix)
-
-    # recreate the structured component hierarchy
-    clustered = []
-    for idx, subject in enumerate(subjects):
-        clustered.append(SubjectData(
-            components=ordered_matrix[idx],
-            path=subject.path,
-            type_=subject.type
-        ))
-
-    return clustered
+    plt.show(block=False)
 
 
 def main():
 
     mne.utils.set_log_level('ERROR')
 
-    try:
-        result_arg = filter(lambda x: 'RESULT=' in x, sys.argv)[0].split('=')[1]
-    except:
-        result_arg = RESULT_FOLDER
-
-    layout = load_layout()
-
-    import pdb; pdb.set_trace()
+    if MEG:
+        layout = None
+    else:
+        layout = load_layout()
 
     print "Reading and processing data from files.."
-    subjects = []
 
-    for fname, data_type, subject_type, preprocessed in SUBJECTS:
-        raw = get_raw(fname, data_type)
+    filenames = sys.argv[1:]
 
-        # find triggers
+    new_components = []
 
-        picks = mne.pick_types(raw.info, eeg=True)
-        raw.drop_channels([ch_name for idx, ch_name in 
-            enumerate(raw.info['ch_names']) if idx not in picks])
+    for idx, fname in enumerate(filenames):
+        print "Handling " + str(idx+1) + ". subject"
+        raw = mne.io.read_raw_fif(fname, preload=True)
 
-        fica = FourierICA(wsize=WSIZE, n_components=COMPONENTS, 
+        picks = mne.pick_types(raw.info, eeg=True, meg=True)
+        raw.drop_channels([ch_name for ix, ch_name in 
+            enumerate(raw.info['ch_names']) if ix not in picks])
+        raw.drop_channels(raw.info['bads'])
+
+        fica = FourierICA(wsize=WSIZE, n_components=COMPONENTS, maxiter=7000,
                           sfreq=raw.info['sfreq'], hpass=BAND[0], lpass=BAND[1])
-        fica.fit(raw._data[:, raw.first_samp:raw.last_samp])
+        fica.fit(raw._data)
 
-        components = get_components(fica, raw.info, 
-                                    raw.last_samp-raw.first_samp, layout)
+        components = get_components(fica, raw.info, len(raw.times), layout)
 
-        subject = SubjectData(components=components, path=fname, 
-                              type_=subject_type)
-        subjects.append(subject)
-
-    # subjects = cluster_components(subjects)
-    indices = []
-    for subject in subjects:
-        plot_components(subject.components, layout)
-        input_ = raw_input("Which component to use: ")
-        indices.append(int(input_))
-
-    components = [subject.components[indices[idx]] 
-                  for idx, subject in enumerate(subjects)]
-
-    import pdb; pdb.set_trace()
-    import pickle
-    pickle.dump(components, open(".all_components.p", "wb"))
-
-
-
-#   while True:
-#       input_ = raw_input("Which component to plot: ")
-#       if input_ == 'q':
-#           break
-#       components_to_plot = [subject.components[int(input_)] for subject in subjects]
-#       plot_components(components_to_plot, layout)
+        plot_components(components, layout)
+        input_ = int(raw_input("Which component to use: ")) - 1
+        if input_ == -1:
+            continue
+        new_components.append(components[input_])
 
     import pdb; pdb.set_trace()
     print "kissa"
