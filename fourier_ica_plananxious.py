@@ -9,35 +9,49 @@ from lib.fourier_ica import FourierICA
 from lib.component import ComponentPlot
 from lib.load import load_layout
 
-
-DATA = '/home/zairex/Code/cibr/analysis/signals/data/ica_plan_spectra/'
+DATA = '/nashome1/erpipehe/data/spectra/'
 N_COMPONENTS = 10
 PAGE = 10
+EVENT_CODES = [
+    ('med', 10),
+    ('rest', 11),
+    ('plan', 12),
+    ('anxious', 13),
+]
+raw = mne.io.Raw(sys.argv[-1], preload=True, add_eeg_ref=False)
 
-raws = [
-    mne.io.Raw(sys.argv[-1], preload=True, add_eeg_ref=False),
+raw.add_proj([], remove_existing=True)
+
+events = mne.find_events(raw)
+
+states = [
+
 ]
 
-for raw in raws:
-    raw.add_proj([], remove_existing=True)
+# find state start and end times
+for desc, code in EVENT_CODES:
+    ivals = []
+    for idx, event in enumerate(events):
+        if event[2] == code:
+            start = event[0] / raw.info['sfreq']
+            try:
+                end = events[idx+1][0] / raw.info['sfreq']
+            except:
+                end = raw.times[-1]
+            ivals.append((start, end))
+    states.append((desc, ivals))
 
 # drop bad and non-data channels
-for raw in raws:
-    picks = mne.pick_types(raw.info, eeg=True, meg=True)
-    raw.drop_channels([name for idx, name in enumerate(raw.info['ch_names'])
-                       if idx not in picks])
-    raw.drop_channels(raw.info['bads'])
+picks = mne.pick_types(raw.info, eeg=True, meg='grad')
+raw.drop_channels([name for idx, name in enumerate(raw.info['ch_names'])
+                   if idx not in picks])
+raw.drop_channels(raw.info['bads'])
 
-raw = mne.concatenate_raws(raws)
-
-layout = load_layout(MEG=True)
+layout = load_layout(MEG=True, layout_path='/nashome1/erpipehe/Code/materials/')
 
 wsize = 4096
 sfreq = raw.info['sfreq']
 
-states = []
-
-events = mne.find_events(raw)
 
 # calculate fourier-ica
 fica = FourierICA(wsize=wsize, n_components=N_COMPONENTS,
@@ -81,9 +95,17 @@ while True:
     fig_ = plt.figure()
     fig_.suptitle(str(current_row) + ' - ' + str(current_row + rows))
     for i in range(rows):
+        axes = fig_.add_subplot(rows, 1, i+1)
         for state in states:
-            x, y = get_spectrum(current_row + i, state)
-            axes = fig_.add_subplot(rows, 1, i+1)
+            name = state[0]
+            ivals = state[1]
+
+            spectra = []
+            for ival in ivals:
+                x, y = get_spectrum(current_row + i, ival)
+                spectra.append(y)
+            y = np.mean(spectra, axis=0)
+
             axes.plot(x, y)
     current_row += PAGE
 
@@ -109,20 +131,17 @@ while True:
 plt.show(block=False)
 
 input_ = raw_input('Choose component: ')
+for state in states:
+    name = state[0]
+    ivals = state[1]
+    spectra = []
+    for ival in ivals:
+        x, y = get_spectrum(int(input_) - 1, ival)
+        spectra.append(y)
+    y = np.mean(spectra, axis=0)
 
-data = []
-header = [] 
-name = sys.argv[-3]
 
-for idx, state in enumerate(states):
-    x, y = get_spectrum(int(input_) - 1, state)
+    path = DATA + sys.argv[-1].split('/')[-1].split('.')[0] + '_' + name + '.csv' # noqa
+    print "Saving to: " + path
+    np.savetxt(path, np.array([x, y]), fmt="%s", delimiter=',')
 
-    header.append("peak " + str(idx+1))
-    data.append(np.max(y))
-    
-    header.append("average " + str(idx+1))
-    data.append(np.mean(y[(freqs > 7) & (freqs < 13)]))
-       
-path = DATA + name + '.csv'
-print "Saving to: " + path
-np.savetxt(path, np.array([header, data]), fmt="%s", delimiter=',')

@@ -67,6 +67,9 @@ def _get_tse(component):
 
     tse = np.mean(np.abs(component.source_stft[tse_range, :]), axis=0)
 
+    # smoothen?
+    tse = np.convolve(tse, np.ones((5,))/5, mode='valid')
+
     return tse
 
 
@@ -135,9 +138,6 @@ def main():
     print "Total: " + str(len(epochs)) + " epochs."
 
     average = np.mean(epochs, axis=0)
-
-    # smoothen?
-    # average = np.convolve(average, np.ones((3,))/3, mode='valid')
 
     step = (LIMITS[0]+LIMITS[1]) / float(len(average))
     times = np.array(range(len(average)))

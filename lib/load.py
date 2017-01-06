@@ -194,8 +194,7 @@ def cli_raws():
     return raws
 
 
-def load_layout(MEG=False):
-    layout_path = '/home/zairex/Code/cibr/materials/'
+def load_layout(MEG=False, layout_path='/home/zairex/Code/cibr/materials/'):
     if MEG:
         layout_filename = 'neuromag306all.lay'
     else:

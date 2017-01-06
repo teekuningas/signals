@@ -7,7 +7,7 @@ import numpy as np
 class ComponentPlot(object):
 
     def __init__(self, source_stft, freqs, triggers, current_row, 
-                 rows, info, raw_length, window=15):
+                 rows, info, raw_length, window=15, title=""):
         self.fig = plt.figure()
         self.position = 0
         self.window = window
@@ -17,6 +17,7 @@ class ComponentPlot(object):
         self.info = info
         self.raw_length = raw_length
         self.freqs = freqs
+        self.title=title
         self.triggers = triggers
         
         self.update_tfr_plot()
@@ -47,8 +48,8 @@ class ComponentPlot(object):
                               window * (position + 1), 
                               1.0) * scale
 
-            # data = np.power(np.abs(source_stft), 2)
-            data = np.abs(source_stft)
+            data = np.power(np.abs(source_stft), 2)
+            # data = np.abs(source_stft)
             # data = 10 * np.log10(np.abs(source_stft))
 
             # select subset of data
@@ -61,9 +62,14 @@ class ComponentPlot(object):
             # use mne's AverageTFR for plotting
             tfr_ = mne.time_frequency.AverageTFR(info, data, times, freqs, 1)
             axes = self.fig.add_subplot(rows, 1, i + 1)
+
+            title = str(current_row) + ' - ' + str(current_row+rows)
+            if self.title:
+                title = self.title
+
             tfr_.plot(picks=[current_row + i], axes=axes, show=False, 
-                      title=(str(current_row) + ' - ' + str(current_row+rows)),
-                      baseline=(None, None))
+                      title=title) 
+            axes.set(xlabel="Time (ms)", ylabel="Frequency (Hz)")
 
             # add triggers
             for trigger in triggers:

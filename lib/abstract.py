@@ -19,7 +19,7 @@ class ComponentData(object):
         self.length = length
 
 
-def plot_components(components, layout):
+def plot_components(components, layout, title=''):
 
     # create figure for head topographies
     fig_ = plt.figure()
@@ -37,6 +37,7 @@ def plot_components(components, layout):
         y = component.source_psd
         x = component.freqs
         axes = fig_.add_subplot(len(components), 1, i + 1)
+        axes.set(xlabel='Frequency (Hz)', ylabel='Power (dB)')
         axes.plot(x, y)
 
     # create figure ica components
@@ -53,7 +54,7 @@ def plot_components(components, layout):
     info['ch_names'] = info['ch_names'][0:len(components)]
     info['nchan'] = len(components)
 
-    cp = ComponentPlot(source_stft, freqs, [], 0, len(components), info, length)
+    cp = ComponentPlot(source_stft, freqs, [], 0, len(components), info, length, title=title)
 
     plt.show(block=False)
 

@@ -13,7 +13,6 @@ from lib.load import get_raw
 from lib.abstract import ComponentData
 from lib.abstract import plot_components
 
-MEG = False
 BAND = [3, 17]
 COMPONENTS = 15
 WSIZE = 2048
@@ -72,40 +71,54 @@ def main():
 
     mne.utils.set_log_level('ERROR')
 
-    layout = load_layout(MEG)
+    layout = load_layout(MEG=False)
 
     print "Reading and processing data from files.."
 
-    filenames = sys.argv[1:]
+    filenames = sorted(sys.argv[1:])
 
     new_components = []
 
-    for idx, fname in enumerate(filenames):
-        plt.close('all')
-        print "Handling " + str(idx+1) + ". subject"
-        raw = mne.io.read_raw_fif(fname, preload=True)
+    for idx in range(0, len(filenames), 2):
+        try:
+            plt.close('all')
 
-        picks = mne.pick_types(raw.info, eeg=True, meg='grad')
-        raw.drop_channels([ch_name for ix, ch_name in 
-            enumerate(raw.info['ch_names']) if ix not in picks])
-        raw.drop_channels(raw.info['bads'])
+            print "Handling " + str(idx / 2 + 1) + ". subject"
+            print "EOEC filename: ", filenames[idx+1]
+            print "MED filename: ", filenames[idx]
 
-        fica = FourierICA(wsize=WSIZE, n_components=COMPONENTS, maxiter=7000, conveps=1e-10,
-                          sfreq=raw.info['sfreq'], hpass=BAND[0], lpass=BAND[1])
-        fica.fit(raw._data)
+            # eoec
+            eoec_raw = mne.io.read_raw_fif(filenames[idx+1], preload=True)
+            eoec_raw.crop(tmin=0, tmax=85)
+            picks = mne.pick_types(eoec_raw.info, eeg=True)
+            chns = [ch_name for ix, ch_name in enumerate(eoec_raw.info['ch_names'])
+                    if ix not in picks]
+            eoec_raw.drop_channels(chns)
+            eoec_raw.add_proj([], remove_existing=True)
+            # raw
+            med_raw = mne.io.read_raw_fif(filenames[idx], preload=True)
+            picks = mne.pick_types(med_raw.info, eeg=True)
+            chns = [ch_name for ix, ch_name in enumerate(med_raw.info['ch_names'])
+                    if ix not in picks]
+            med_raw.drop_channels(chns)
+            med_raw.add_proj([], remove_existing=True)
 
-        components = get_components(fica, raw.info, len(raw.times), layout)
+            raw = mne.concatenate_raws([eoec_raw, med_raw])
 
-        handle = plot_components(components, layout, title='Fourier-ICA components from one subject')
-        
-        # input_ = raw_input("Components: ")
-        # selections = [int(val) for val in input_.split(' ')]
-        # handle = plot_components(list(np.array(components)[selections]), layout, title='Fourier-ICA components from one subject')
+            fica = FourierICA(wsize=WSIZE, n_components=COMPONENTS, maxiter=7000, conveps=1e-11,
+                              sfreq=raw.info['sfreq'], hpass=BAND[0], lpass=BAND[1])
+            fica.fit(raw._data)
 
-        input_ = int(raw_input("Which component to use: "))
-        if input_ == -1:
-            continue
-        new_components.append(components[input_ - 1])
+            components = get_components(fica, raw.info, len(raw.times), layout)
+
+            handle = plot_components(components, layout)
+            input_ = int(raw_input("Which component to use: "))
+            if input_ == -1:
+                continue
+            new_components.append(components[input_ - 1])
+        except:
+            import pdb; pdb.set_trace()
+            print "Exception!"
 
     import pdb; pdb.set_trace()
     print "kissa"
