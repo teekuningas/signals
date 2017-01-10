@@ -16,7 +16,7 @@ from lib.abstract import plot_components
 MEG = False
 BAND = [3, 17]
 COMPONENTS = 15
-WSIZE = 2048
+WSIZE = 1024
 
 PATH = '/home/zairex/Code/cibr/analysis/signals/data/fica/'
 
@@ -46,7 +46,7 @@ def _create_topo(sensor_stft, layout, info):
     return image
 
 
-def get_components(fica, info, length, layout):
+def get_components(fica, info, length, layout, events):
     source_stft = fica.source_stft
 
     components = []
@@ -63,6 +63,7 @@ def get_components(fica, info, length, layout):
             freqs=fica.freqs,
             length=length,
             info=info.copy(),
+            events=events
         )
         components.append(component_data)
     return components
@@ -81,31 +82,40 @@ def main():
     new_components = []
 
     for idx, fname in enumerate(filenames):
-        plt.close('all')
-        print "Handling " + str(idx+1) + ". subject"
-        raw = mne.io.read_raw_fif(fname, preload=True)
+        try:
+            plt.close('all')
+            print "Handling " + str(idx+1) + ". subject"
+            raw = mne.io.read_raw_fif(fname, preload=True)
 
-        picks = mne.pick_types(raw.info, eeg=True, meg='grad')
-        raw.drop_channels([ch_name for ix, ch_name in 
-            enumerate(raw.info['ch_names']) if ix not in picks])
-        raw.drop_channels(raw.info['bads'])
+            try:
+                events = mne.find_events(raw)
+            except:
+                events = []
 
-        fica = FourierICA(wsize=WSIZE, n_components=COMPONENTS, maxiter=7000, conveps=1e-10,
-                          sfreq=raw.info['sfreq'], hpass=BAND[0], lpass=BAND[1])
-        fica.fit(raw._data)
+            picks = mne.pick_types(raw.info, eeg=True, meg='grad')
+            raw.drop_channels([ch_name for ix, ch_name in 
+                enumerate(raw.info['ch_names']) if ix not in picks])
+            raw.drop_channels(raw.info['bads'])
 
-        components = get_components(fica, raw.info, len(raw.times), layout)
+            fica = FourierICA(wsize=WSIZE, n_components=COMPONENTS, maxiter=7000, conveps=1e-10,
+                              sfreq=raw.info['sfreq'], hpass=BAND[0], lpass=BAND[1])
+            fica.fit(raw._data)
 
-        handle = plot_components(components, layout, title='Fourier-ICA components from one subject')
-        
-        # input_ = raw_input("Components: ")
-        # selections = [int(val) for val in input_.split(' ')]
-        # handle = plot_components(list(np.array(components)[selections]), layout, title='Fourier-ICA components from one subject')
+            components = get_components(fica, raw.info, len(raw.times), layout, events)
 
-        input_ = int(raw_input("Which component to use: "))
-        if input_ == -1:
-            continue
-        new_components.append(components[input_ - 1])
+            handle = plot_components(components, layout, title='Fourier-ICA components from one subject')
+            
+            # input_ = raw_input("Components: ")
+            # selections = [int(val) for val in input_.split(' ')]
+            # handle = plot_components(list(np.array(components)[selections]), layout, title='Fourier-ICA components from one subject')
+
+            input_ = int(raw_input("Which component to use: "))
+            if input_ == -1:
+                continue
+            new_components.append(components[input_ - 1])
+        except:
+            import pdb; pdb.set_trace()
+            print "Smoething went wrong."
 
     import pdb; pdb.set_trace()
     print "kissa"

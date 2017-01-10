@@ -13,7 +13,7 @@ from lib.abstract import plot_components
 
 
 MEG = True
-LIMITS = [20, 10]
+LIMITS = [10, 5]
 
 
 def _filter_triggers(triggers, sfreq, start, end):
@@ -62,13 +62,13 @@ def _get_tse(component):
     max_idx = start + np.argmax(component.source_psd[range_])
     max_ = freqs[max_idx]
     
-    # take range of 2 hertz for tse
+    # take range of 5 hertz for tse
     tse_range = np.where((freqs > max_-1) & (freqs < max_+1))[0]
 
     tse = np.mean(np.abs(component.source_stft[tse_range, :]), axis=0)
 
     # smoothen?
-    tse = np.convolve(tse, np.ones((5,))/5, mode='valid')
+    tse = np.convolve(tse, np.ones((3,))/3, mode='valid')
 
     return tse
 
@@ -78,10 +78,10 @@ def _get_epochs(component, tse):
     # load raw temporarily to find triggers
     raw = mne.io.read_raw_fif(component.info['filename'], preload=False)
 
-    sfreq = raw.info['sfreq']
+    sfreq = component.info['sfreq']
 
     # find and filter triggers
-    events = [event for event in mne.find_events(raw) if event[1] == 0]
+    events = [event for event in component.events if event[1] == 0]
     triggers = np.array(events)[:, 0]
     triggers = _filter_triggers(triggers, sfreq, raw.first_samp, raw.last_samp)
     triggers = [trigger - raw.first_samp for trigger in triggers]
@@ -126,25 +126,52 @@ def main():
     for component in components:
         tses.append(_get_tse(component))
 
-    epochs = []
+    subject_epochs = []
     for i in range(len(components)):
-        component_epochs = _get_epochs(components[i], tses[i])
+        epochs = _get_epochs(components[i], tses[i])
         # normalize
-        for j, epoch in enumerate(component_epochs):
-            component_epochs[j] = epoch / np.mean(tses[i])
+        # for j, epoch in enumerate(epochs):
+        #     epochs[j] = epoch / np.mean(tses[i])
 
-        epochs.extend(component_epochs)
+        if len(epochs) == 0:
+            continue
 
-    print "Total: " + str(len(epochs)) + " epochs."
+        max_value = np.max(np.mean(epochs, axis=0))
+        limit = 1.8
+        if max_value > limit:
+            continue
 
-    average = np.mean(epochs, axis=0)
+        subject_epochs.append(np.array(epochs))
 
-    step = (LIMITS[0]+LIMITS[1]) / float(len(average))
-    times = np.array(range(len(average)))
+    print str(sum([len(epochs) for epochs in subject_epochs])) + " epochs found."
+
+    # average = np.mean(epochs, axis=0)
+
+    length = len(subject_epochs[0][0])
+    step = (LIMITS[0]+LIMITS[1]) / float(length)
+    times = np.array(range(length))
     times = times * step - LIMITS[0] + step/2
 
+    # average
+    average = np.mean([np.mean(epoch, axis=0) for epoch in subject_epochs], 
+                      axis=0)
+    fig, ax = plt.subplots()
+    ax.set(title="TSE averaged over subjects and events", xlabel="Time (ms)")
     plt.plot(times, average)
+
+    fig, ax = plt.subplots()
+    ax.set(title='TSE', xlabel='Time (s)')
+    for epochs in subject_epochs:
+        ax.plot(times, np.mean(epochs, axis=0))
+
+    # for i, epochs in enumerate(subject_epochs):
+    #     average = np.mean(epochs, axis=0)
+    #     fig, ax = plt.subplots()
+    #     ax.plot(times, average)
+
     plt.show()
+    import pdb; pdb.set_trace()
+    print "Miau"
 
 
 if __name__ == '__main__':
