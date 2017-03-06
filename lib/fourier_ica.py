@@ -157,8 +157,9 @@ class FourierICA(object):
                              dtype=np.complex128)
             for i in range(w_old.shape[1]):
                 y_ = np.dot(np.conj(w_old[:, i]).T, x)
-                g_ = np.log(1 + np.abs(y_)**2)
-                dg_ = 1.0 / (1 + np.abs(y_)**2)
+            
+                g_ = 1.0/(0.1 + np.abs(y_)**2)
+                dg_ = -1.0 / (0.1 + np.abs(y_)**2)**2
 
                 first = np.mean(x*np.conj(y_)*g_, axis=-1)
                 second = np.mean(g_ + (np.abs(y_)**2)*dg_, axis=-1)*w_old[:, i]  # noqa
