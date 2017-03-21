@@ -30,16 +30,16 @@ for fname in filenames:
     with open(fname, 'rb') as f:
         contents[fname] = f.readlines()
 
-# check freqs cohesion
-freqs_valid = True
-freqs_line = contents.values()[0][0]
+# check header cohesion
+header_valid = True
+header_line = contents.values()[0][0]
 for content in contents.values():
-    if freqs_line != content[0]:
+    if header_line != content[0]:
         valid = False
         break
 
-if not freqs_valid:
-    print "Some of the files have different freqs, don't know how to continue. :("
+if not header_valid:
+    print "Some of the files have different headers, don't know what to do :("
     exit(0)
 
 print "Please give a list of channel numbers separated by spaces to select what channels to retain."
@@ -60,7 +60,7 @@ for sub_name, content in contents.items():
         if found:
             filtered.append(sub_name + ' ' + line)
 
-csv_lines = [freqs_line] + sorted(filtered)
+csv_lines = [header_line] + sorted(filtered)
 
 combined_fname = raw_input("Please give a filename for new combined file: ")
 with open(combined_fname, 'wb') as f:
