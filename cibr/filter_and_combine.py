@@ -98,7 +98,10 @@ for sub_name, content in contents.items():
                 found = True
                 break
         if found:
-            filtered.append(sub_name + ' ' + line)
+            if len(contents) > 1:
+                filtered.append(sub_name + ' ' + line)
+            else:
+                filtered.append(line)
 
 if not AVERAGE_DEFINED:
     resp = raw_input('Do you want to average (y or n): ')
@@ -108,7 +111,7 @@ if average:
     content_rows = np.array([np.array([float(val) for val in row.split(', ')[1:]])  # noqa
                              for row in filtered])
     averaged = np.mean(content_rows, axis=0)
-    filtered = [', '.join([str(val) for val in averaged.tolist()]) + '\n']
+    filtered = ['average, ' + ', '.join([str(val) for val in averaged.tolist()]) + '\n']
 
 # save the file
 csv_lines = [header_line] + sorted(filtered)
