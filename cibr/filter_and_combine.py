@@ -1,6 +1,6 @@
 """
 Usage:
-    python combine_meggie_csv.py list_of_filenames
+    python filter_and_combine.py output_file list_of_input_files
 
     For example if in current folder you have files:
       AC_A0043_mc_cmb_raw_spectrum_1.txt
@@ -78,6 +78,10 @@ for content in contents.values():
         valid = False
         break
 
+# remove header from all
+for key in contents.keys():
+    del contents[key][0]
+
 if not header_valid:
     raise Exception("Some of the files have different headers, don't know what to do :(")
 
@@ -85,6 +89,8 @@ if not CHANNELS_DEFINED:
     print "Please give a list of channel numbers separated by spaces to select what channels to retain."
     print "For EEG for example: 002 099 123"
     print "For MEG for example: 0121 2121"
+    print "For all channels use empty string"
+    print "Or more generally you can use any substrings that should be present in the first column."
     channels = raw_input('Write it here: ')
 
 channels = [str(channel) for channel in channels.split(' ')]
@@ -119,7 +125,10 @@ csv_lines = [header_line] + sorted(filtered)
 savepath = arguments[1].split('/')
 
 if len(savepath) > 1:
-    os.makedirs('/'.join(savepath[:-1]))
+    try:
+        os.makedirs('/'.join(savepath[:-1]))
+    except:
+        pass
 
 with open(arguments[1], 'wb') as f:
     f.writelines(csv_lines)
