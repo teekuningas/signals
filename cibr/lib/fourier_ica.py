@@ -267,3 +267,6 @@ class FourierICA(object):
             splitted[:, :, idx] = part
 
         return splitted
+
+if __name__ == '__main__':
+    print "This script is not runnable, used only as a library"
