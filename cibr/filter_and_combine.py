@@ -78,12 +78,12 @@ for content in contents.values():
         valid = False
         break
 
+if not header_valid:
+    raise Exception("Some of the files have different headers, don't know what to do :(")
+
 # remove header from all
 for key in contents.keys():
     del contents[key][0]
-
-if not header_valid:
-    raise Exception("Some of the files have different headers, don't know what to do :(")
 
 if not CHANNELS_DEFINED:
     print "Please give a list of channel numbers separated by spaces to select what channels to retain."
