@@ -4,7 +4,6 @@
 import sys
 
 import numpy as np
-import mne
 
 from mne.time_frequency.stft import stft
 from mne.time_frequency.stft import stftfreq
@@ -26,44 +25,25 @@ class FourierICA(object):
     ...
     """
 
-    def __init__(self, wsize, n_components, tstep=None, 
-                 conveps=None, maxiter=None, zerotolerance=None, 
-                 lpass=None, hpass=None, sfreq=None):
-        self.wsize = wsize
+    def __init__(self, stft, freqs, n_components, conveps=None, maxiter=None, 
+                 zerotolerance=None):
+        self.stft = stft
+        self._freqs = freqs
         self.n_components = n_components
-        self.tstep = tstep
         self.conveps = conveps
         self.maxiter = maxiter
         self.zerotolerance = zerotolerance
-        self.lpass = lpass
-        self.hpass = hpass
-        self.sfreq = sfreq
 
-    def fit(self, data):
+    def fit(self):
         """ Fit data
 
         Parameters
         ---------
-        data : ndarray, shape (channels, times)
+        data : ndarray, shape (channels, freqs, times)
 
         """
 
-        print "First do stft"
-        stft_ = stft(data, self.wsize, self.tstep)
-
-        # bandpass filter
-        if self.sfreq:
-            freqs = stftfreq(self.wsize, self.sfreq)
-
-            hpass, lpass = 0, len(freqs)
-            if self.hpass:
-                hpass = min(np.where(freqs >= self.hpass)[0])
-            if self.lpass:
-                lpass = max(np.where(freqs <= self.lpass)[0])
-
-            self._freqs = freqs[hpass:lpass]
-
-            stft_ = stft_[:, hpass:lpass, :]
+        stft_ = self.stft
 
         # store shape to retrieve it later
         self._stft_shape = stft_.shape
@@ -267,6 +247,34 @@ class FourierICA(object):
             splitted[:, :, idx] = part
 
         return splitted
+
+
+def fourier_ica_from_raw(raw, wsize, n_components, tstep=None, 
+                 conveps=None, maxiter=None, zerotolerance=None, 
+                 lpass=None, hpass=None, sfreq=None):
+
+    print "First do stft"
+    stft_ = stft(raw._data, wsize, tstep)
+
+    # bandpass filter
+    if sfreq:
+        freqs = stftfreq(wsize, sfreq)
+
+        hpass_, lpass_ = 0, len(freqs)
+        if hpass:
+            hpass_ = min(np.where(freqs >= hpass)[0])
+        if lpass:
+            lpass_ = max(np.where(freqs <= lpass)[0])
+
+        self._freqs = freqs[hpass_:lpass_]
+
+        stft_ = stft_[:, hpass_:lpass_, :]
+
+    fica = FourierICA(raw._data, freqs, n_components, conveps=None, maxiter=None, 
+                      zerotolerance=None, lpass=None, hpass=None, sfreq=None)
+
+    return fica
+
 
 if __name__ == '__main__':
     print "This script is not runnable, used only as a library"
