@@ -47,7 +47,7 @@ def _remove_extra_ones(things):
     things = list(things)
     i = len(things) - 1
     while True:
-        if things[i][0] < things[i-1][0] + 1000:
+        if things[i][0] < things[i-1][0] + 2*raw.info['sfreq']:
             del things[i]
         i -= 1
         if i == 0:
@@ -90,12 +90,12 @@ def get_ibi(remove_outliers=False):
     return x, y
 
 
-def intervals_from_condition(concentration, stimulus_type, correct=None):
+def intervals_from_condition(concentration, stimulus_type, is_correct=None):
     """
     concentration: heart / note
     stimulus_type: sync_with_tone / sync_without_tone /
                    desync_with_tone / desync_without_tone
-    correct: True / False
+    is_correct: True / False
     """
 
     # helper structure to get ids
@@ -201,12 +201,12 @@ def intervals_from_condition(concentration, stimulus_type, correct=None):
     intervals = filter(lambda ival: select_types(ival, stimulus_type),
                        intervals)
 
-    if correct is True:
+    if is_correct is True:
         intervals = filter(lambda ival: is_correct_answer(ival, 
                                                           concentration,
                                                           stimulus_type),
                            intervals)
-    elif correct is False:
+    elif is_correct is False:
         intervals = filter(lambda ival: not is_correct_answer(ival, 
                                                               concentration, 
                                                               stimulus_type),
@@ -289,8 +289,8 @@ ibi = get_ibi(remove_outliers=True)
 count_ = 0
 for concentration in ['heart', 'note']:
     for stimulus_type in ['desync_without_tone', 'sync_without_tone', 'desync_with_tone', 'sync_with_tone']:
-        for correct in [True, False]:
-            intervals = intervals_from_condition(concentration, stimulus_type, correct)
+        for is_correct in [True, False]:
+            intervals = intervals_from_condition(concentration, stimulus_type, is_correct)
             count_ += len(intervals)
 
             if intervals:
@@ -299,14 +299,15 @@ for concentration in ['heart', 'note']:
                 mean, std = 'no_value', 'no_value'
 
             data_array.append([
-                concentration + ' ' + stimulus_type + ' ' + str(correct),
+                concentration + ' ' + stimulus_type + ' ' + str(is_correct),
                 str(mean),
-                str(std)
+                str(std),
+                str(len(intervals))
             ])
 
 # add output to console
-for condition, mean, std in data_array:
-    print "Condition: " + condition + "; Mean: " + mean + "; Std: " + std
+for condition, mean, std, count in data_array:
+    print "Condition: " + condition + "; Mean: " + mean + "; Std: " + std + "; Count: " + count
 
 try:
     os.makedirs(SAVE_FOLDER + 'data/')
@@ -317,7 +318,7 @@ save_path = SAVE_FOLDER + 'data/' + raw.info['filename'].split('/')[-1].split('.
 
 print "Saving stats to " + save_path
 
-lines = [', '.join(row) + '\n' for row in [['concentration stimulus_type correct', 'mean', 'std']] + data_array]
+lines = [', '.join(row) + '\n' for row in [['concentration stimulus_type is_correct', 'mean', 'std', "count"]] + data_array]
 
 with open(save_path, 'wb') as f:
     f.writelines(lines)
