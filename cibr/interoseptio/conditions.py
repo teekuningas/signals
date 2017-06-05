@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 
 SAVE_FOLDER = 'output/heartbeats/'
+SHOW_PLOT = False
 
 fname = sys.argv[-1]
 raw = mne.io.read_raw_fif(fname, preload=True)
@@ -268,7 +269,8 @@ ibi = get_ibi(remove_outliers=False)
 
 ax.plot(ibi[0], ibi[1])
 
-plt.show()
+if SHOW_PLOT:
+    plt.show()
 
 try:
     os.makedirs(SAVE_FOLDER + 'pics/')
