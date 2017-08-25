@@ -2,22 +2,35 @@
 Usage:
     python filter_and_combine.py output_file list_of_input_files
 
+    Takes csv files (with similar header) as input and combines them
+    to a new csv file with optional filtering (take only rows with
+    specified substrings in the first column) and averaging
+    (average all (filtered) rows to one row).
+
+    Substrings (e.g channels) and averaging can be specified via 
+    command line arguments or by interactive prompts.
+
     For example if in current folder you have files:
-      AC_A0043_mc_cmb_raw_spectrum_1.txt
-      AC_A0043_mc_cmb_raw_spectrum_2.txt
-      AC_A0043_mc_cmb_raw_spectrum_3.txt
-      AC_A0048_mc_cmb_raw_spectrum_1.txt
-      AC_A0048_mc_cmb_raw_spectrum_2.txt
-      AC_A0048_mc_cmb_raw_spectrum_3.txt
+      AC_A0043_mc_cmb_raw_spectrum_1.csv
+      AC_A0043_mc_cmb_raw_spectrum_2.csv
+      AC_A0043_mc_cmb_raw_spectrum_3.csv
+      AC_A0048_mc_cmb_raw_spectrum_1.csv
+      AC_A0048_mc_cmb_raw_spectrum_2.csv
+      AC_A0048_mc_cmb_raw_spectrum_3.csv
 
     To get all files in condition 1 you can either list them all:
-      python filter_and_combine.py output.txt AC_A0043_mc_cmb_raw_spectrum_1.txt AC_A0048_mc_cmb_raw_spectrum_1.txt
-    
-    or you can use *-operator if you know how:
-      python filter_and_combine.py output.txt *_1*
+      python filter_and_combine.py output.csv AC_A0043_mc_cmb_raw_spectrum_1.csv AC_A0048_mc_cmb_raw_spectrum_1.csv
 
-    or to get all .txt-files in current folder:
-      python filter_and_combine.py output.txt *.txt
+    or you can use *-operator if you know how:
+      python filter_and_combine.py output.csv *_1*
+
+    or to get all .csv-files in current folder:
+      python filter_and_combine.py output.csv *.csv
+
+    Average over group (of subjects), and channels (specified in channels.txt):
+
+      $ echo "0121 2121" > channels.txt
+      $ python filter_and_combine.py --channels channels.txt --average group_average_0121_2121.csv subject_1.csv subject_2.csv subject_3.csv
 
 """
 
@@ -45,9 +58,8 @@ if '--channels' in arguments:
 AVERAGE_DEFINED = False
 if '--average' in arguments:
     idx = arguments.index('--average')
-    value = arguments.pop(idx + 1)
     arguments.pop(idx)
-    average = True if value=='true' else False
+    average = True
 
     AVERAGE_DEFINED = True
 
