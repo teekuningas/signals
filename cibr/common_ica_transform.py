@@ -14,14 +14,14 @@ import scipy
 
 import matplotlib.pyplot as plt
 
-from signals.ica.complex_ica import complex_ica
+from signals.cibr.ica.complex_ica import complex_ica
 
-from signals.common import preprocess
-from signals.common import load_raw
-from signals.common import calculate_stft
-from signals.common import arrange_as_matrix
-from signals.common import arrange_as_tensor
-from signals.common import get_power_law
+from signals.cibr.common import preprocess
+from signals.cibr.common import load_raw
+from signals.cibr.common import calculate_stft
+from signals.cibr.common import arrange_as_matrix
+from signals.cibr.common import arrange_as_tensor
+from signals.cibr.common import get_power_law
 
 
 def get_mean_spectra(data, freqs):
@@ -115,7 +115,7 @@ def get_peak_by_correlation(subject_psd, average_psd):
         return avg_argmax
 
 
-def get_correlations(data, freqs, intervals, raw_times):
+def get_correlations(data, freqs, intervals, raw_times, splits_in_samples):
 
     mean_spectra = get_mean_spectra(data, freqs)
     subject_spectra = get_subject_spectra(data, freqs, intervals, raw_times)
@@ -144,7 +144,7 @@ def plot_brainmaps(save_path, dewhitening, mixing, mean, raw_info, page, compone
         os.makedirs(save_path)
 
     # extract brainmaps from the mixing matrix
-    brainmaps  = np.abs(np.dot(dewhitening, mixing) + mean[:, np.newaxis])
+    brainmaps = np.abs(np.dot(dewhitening, mixing) + mean[:, np.newaxis])
 
     # plot brainmaps of selected (ordered) component indices
     fig_ = plt.figure()
@@ -340,7 +340,7 @@ if __name__ == '__main__':
     page = 10
     window_in_seconds = 2
     n_components = 30
-    conveps = 1e-7
+    conveps = 1e-5
     maxiter = 15000
     hpass = 4
     lpass = 16
