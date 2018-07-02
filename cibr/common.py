@@ -52,16 +52,16 @@ def load_raw(fnames):
     return raw
 
 
-def preprocess(raw, filter_=True):
+def preprocess(raw, filter_=(2, 35), min_duration=2):
     print "Preprocessing."
 
-    events = mne.find_events(raw, shortest_event=1, min_duration=2/raw.info['sfreq'])
+    events = mne.find_events(raw, shortest_event=1, min_duration=min_duration/raw.info['sfreq'], uint_cast=True)
     picks = mne.pick_types(raw.info, meg='grad')
     raw.drop_channels([ch for idx, ch in enumerate(raw.info['ch_names']) 
                        if idx not in picks])
 
     if filter_:
-        raw.filter(l_freq=2, h_freq=35)
+        raw.filter(l_freq=filter_[0], h_freq=filter_[1], verbose='error')
 
     return raw, events
 
