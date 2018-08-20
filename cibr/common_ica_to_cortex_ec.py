@@ -25,7 +25,7 @@ from signals.cibr.common import get_correlations
 from signals.cibr.common import calculate_stft
 from signals.cibr.common import arrange_as_matrix
 from signals.cibr.common import arrange_as_tensor
-from signals.cibr.common import plot_brainmaps
+from signals.cibr.common import plot_topomaps
 from signals.cibr.common import plot_mean_spectra
 from signals.cibr.common import plot_subject_spectra
 from signals.cibr.common import get_rest_intervals
@@ -166,7 +166,7 @@ if __name__ == '__main__':
         print 'Component ' + str(idx+1) + ': ' + str(corr_scores[idx])
 
     print "Plotting brainmaps."
-    plot_brainmaps(save_path, dewhitening, mixing, mean, raw.info,
+    plot_topomaps(save_path, dewhitening, mixing, mean, raw.info,
                    page, corr_idxs)
     # print "Plotting mean spectra."
     # plot_mean_spectra(save_path, data, freqs, page, corr_idxs)

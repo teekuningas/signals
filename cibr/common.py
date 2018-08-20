@@ -307,25 +307,34 @@ def get_correlations(data, freqs, intervals, raw_times):
     return correlations
 
 
-def plot_brainmaps(save_path, dewhitening, mixing, mean, raw_info, page, component_idxs):
+def plot_topomaps(save_path, dewhitening, mixing, mean, raw_info, page, component_idxs):
 
     # create necessary savepath
     if save_path and not os.path.exists(save_path):
         os.makedirs(save_path)
 
-    # extract brainmaps from the mixing matrix
-    brainmaps = np.abs(np.dot(dewhitening, mixing) + mean[:, np.newaxis])
+    # extract topomaps from the mixing matrix
+    topomaps = np.abs(np.dot(dewhitening, mixing) + mean[:, np.newaxis])
 
-    # plot brainmaps of selected (ordered) component indices
-    fig_ = plt.figure()
-    for i, idx in enumerate(component_idxs):
-        topo_data = brainmaps[:, idx]
-        axes = fig_.add_subplot(page, (len(component_idxs) - 1) / page + 1, i+1)
-        mne.viz.plot_topomap(topo_data, raw_info, axes=axes, show=False)
+    for ch_type in ['grad', 'planar1', 'planar2']:
 
-    # save plotted maps
-    if save_path:
-        fig_.savefig(os.path.join(save_path, 'topo.png'), dpi=310)
+        picks = mne.pick_types(raw_info, meg=ch_type)
+        if ch_type == 'grad':
+            pos = raw_info
+        else:
+            pos = mne.channels.layout._find_topomap_coords(raw_info, picks)
+
+        # plot topomaps of selected (ordered) component indices
+        fig_ = plt.figure()
+        for i, idx in enumerate(component_idxs):
+            topo_data = topomaps[picks, idx]
+            axes = fig_.add_subplot(page, (len(component_idxs) - 1) / page + 1, i+1)
+            mne.viz.plot_topomap(topo_data, pos, axes=axes, show=False)
+
+        # save plotted maps
+        if save_path:
+            fig_.savefig(os.path.join(save_path, ch_type + '_topo.png'), 
+                         dpi=310)
 
 
 def plot_mean_spectra(save_path, data, freqs, page, component_idxs):

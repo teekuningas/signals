@@ -15,6 +15,7 @@ import scipy
 import matplotlib.pyplot as plt
 
 from signals.cibr.ica.complex_ica import complex_ica
+from sklearn.decomposition import FastICA
 
 from signals.cibr.common import load_raw
 from signals.cibr.common import preprocess
@@ -22,7 +23,6 @@ from signals.cibr.common import get_correlations
 from signals.cibr.common import calculate_stft
 from signals.cibr.common import arrange_as_matrix
 from signals.cibr.common import arrange_as_tensor
-from signals.cibr.common import plot_topomaps
 from signals.cibr.common import plot_mean_spectra
 from signals.cibr.common import plot_subject_spectra
 from signals.cibr.common import plot_subject_spectra_separate
@@ -32,8 +32,38 @@ from signals.cibr.common import get_rest_intervals
 from signals.cibr.common import get_peak_by_correlation
 
 
+def plot_topomaps(save_path, mixing, raw_info, page, component_idxs):
+
+    # create necessary savepath
+    if save_path and not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    # extract topomaps from the mixing matrix
+    topomaps = np.abs(mixing)
+
+    for ch_type in ['grad', 'planar1', 'planar2']:
+
+        picks = mne.pick_types(raw_info, meg=ch_type)
+        if ch_type == 'grad':
+            pos = raw_info
+        else:
+            pos = mne.channels.layout._find_topomap_coords(raw_info, picks)
+
+        # plot topomaps of selected (ordered) component indices
+        fig_ = plt.figure()
+        for i, idx in enumerate(component_idxs):
+            topo_data = topomaps[picks, idx]
+            axes = fig_.add_subplot(page, (len(component_idxs) - 1) / page + 1, i+1)
+            mne.viz.plot_topomap(topo_data, pos, axes=axes, show=False)
+
+        # save plotted maps
+        if save_path:
+            fig_.savefig(os.path.join(save_path, ch_type + '_topo.png'), dpi=310)
+
+
+
 def save_spectrum_data(save_path, data, freqs, 
-                     raw_times, component_idxs, correlations, names,
+                     raw_times, component_idxs, names,
                      total_ivals):
 
     if save_path and not os.path.exists(save_path):
@@ -147,11 +177,11 @@ if __name__ == '__main__':
     sfreq = raw.info['sfreq']
     page = 10
     window_in_seconds = 2
-    n_components = 20
+    n_components = 30
     conveps = 1e-7
     maxiter = 15000
     hpass = 4
-    lpass = 16
+    lpass = 30
     window_in_samples = np.power(2, np.ceil(np.log(
         sfreq * window_in_seconds)/np.log(2)))
     overlap_in_samples = (window_in_samples * 3) / 4
@@ -182,51 +212,61 @@ if __name__ == '__main__':
 
     shape, orig_data = orig_data.shape, arrange_as_matrix(orig_data)
 
-    data, mixing, dewhitening, _, _, mean = complex_ica(
-        orig_data, n_components, conveps=conveps, maxiter=maxiter)
+    # data, mixing, dewhitening, _, _, mean = complex_ica(
+    #     orig_data, n_components, conveps=conveps, maxiter=maxiter)
 
-    back_proj = np.dot(np.dot(dewhitening, mixing), data) + mean[:, np.newaxis]
-    var_explained = (100 - 100*np.mean(np.var(orig_data - back_proj))/
-                     np.mean(np.var(orig_data)))
-    del back_proj
-    del orig_data
-    print "Variance explained by components: " + str(var_explained)
+    ica = FastICA(
+        n_components=n_components,
+        algorithm='parallel',
+        whiten=True,
+        max_iter=10000,
+        tol=0.000000001)
+
+    data = ica.fit_transform(np.abs(orig_data).T).T
+    mixing = ica.mixing_
+
+    # back_proj = np.dot(mixing, data)
+    # var_explained = (100 - 100*np.mean(np.var(orig_data - back_proj))/
+    #                  np.mean(np.var(orig_data)))
+    # del back_proj
+    # del orig_data
+    # print "Variance explained by components: " + str(var_explained)
 
     data = arrange_as_tensor(data, shape)
 
-    print "Calculating correlations."
-    correlations = get_correlations(data, freqs, total_ivals, raw.times)
-    corr_scores = np.sum(correlations, axis=1)
+    # print "Calculating correlations."
+    # correlations = get_correlations(data, freqs, total_ivals, raw.times)
+    # corr_scores = np.sum(correlations, axis=1)
 
     # sort in reverse order
-    corr_idxs = np.argsort(-corr_scores)
+    # corr_idxs = np.argsort(-corr_scores)
 
-    print "Corr scores sorted: "
-    for idx in corr_idxs:
-        print 'Component ' + str(idx+1) + ': ' + str(corr_scores[idx])
+    # print "Corr scores sorted: "
+    # for idx in corr_idxs:
+    #     print 'Component ' + str(idx+1) + ': ' + str(corr_scores[idx])
 
     print "Plotting brainmaps."
-    plot_topomaps(cli_args.save_path, dewhitening, mixing, mean, raw.info,
-                   page, corr_idxs)
+    plot_topomaps(cli_args.save_path, mixing, raw.info,
+                   page, range(data.shape[0]))
 
     print "Plotting mean spectra."
-    plot_mean_spectra(cli_args.save_path, data, freqs, page, corr_idxs)
+    plot_mean_spectra(cli_args.save_path, data, freqs, page, range(data.shape[0]))
 
     print "Plotting subject spectra."
     plot_subject_spectra(cli_args.save_path, data, freqs, page, 
-                         total_ivals, raw.times, corr_idxs)
+                         total_ivals, raw.times, range(data.shape[0]))
 
-    print "Plotting subject spectra to separate images"
-    plot_subject_spectra_separate(cli_args.save_path, data, freqs, page, 
-                                  total_ivals, raw.times, corr_idxs,
-                                  names)
+    # print "Plotting subject spectra to separate images"
+    # plot_subject_spectra_separate(cli_args.save_path, data, freqs, page, 
+    #                               total_ivals, raw.times, range(data.shape[0]),
+    #                               names)
 
-    print "Saving to data values."
+    # print "Saving to data values."
     # save all the values in same order as the plot
-    save_peak_values(cli_args.save_path, data, freqs,
-                     raw.times, corr_idxs, correlations, names,
-                     total_ivals)
+    # save_peak_values(cli_args.save_path, data, freqs,
+    #                  raw.times, corr_idxs, correlations, names,
+    #                  total_ivals)
 
     print "Saving spectrum data"
     save_spectrum_data(cli_args.save_path, data, freqs, 
-                       raw.times, corr_idxs, correlations, names, total_ivals)
+                       raw.times, range(data.shape[0]), names, total_ivals)
