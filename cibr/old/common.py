@@ -123,6 +123,67 @@ def arrange_as_tensor(mat, shape):
     return tensor
 
 
+def compute_stft_intervals(stft, events, first_samp, raw_length):
+
+    intervals = {}
+    for idx, event in enumerate(events):
+        if event[2] not in intervals:
+            intervals[event[2]] = []
+
+        smin = int(((event[0] - first_samp) / float(raw_length)) * 
+                   stft.shape[2] + 0.5)
+
+        if idx == len(events) - 1:
+            smax = stft.shape[2] - 1
+        else:
+            smax = int(((events[idx+1][0] - first_samp) / 
+                        float(raw_length)) * stft.shape[2] + 0.5)
+
+        intervals[event[2]].append((smin, smax))
+
+    return intervals
+
+
+def combine_stft_intervals(stft, intervals):
+    parts = []
+    for smin, smax in intervals:
+        parts.append(stft[:, :, smin:smax])
+
+    return np.concatenate(parts, axis=-1)
+
+
+def compute_raw_intervals(raw, events):
+
+    intervals = {}
+    for idx, event in enumerate(events):
+        if event[2] not in intervals:
+            intervals[event[2]] = []
+
+        if idx == len(events) - 1:
+            tmax = raw._data.shape[1] - 1
+        else:
+            tmax = events[idx+1][0] - raw.first_samp
+
+        tmin = event[0] - raw.first_samp
+
+        # convert to seconds
+        tmin = tmin / raw.info['sfreq']
+        tmax = tmax / raw.info['sfreq']
+
+        intervals[event[2]].append((tmin, tmax))
+
+    return intervals
+
+
+def combine_raw_intervals(raw, intervals):
+    raws = []
+    for interval in intervals:
+        data = raw.copy().crop(tmin=interval[0], tmax=interval[1])._data
+        raws.append(mne.io.RawArray(data, raw.info))
+
+    return mne.concatenate_raws(raws)
+
+
 def get_mean_spectra(data, freqs):
     mean_spectra = []  
     for i in range(data.shape[0]):

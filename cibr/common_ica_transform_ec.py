@@ -112,8 +112,6 @@ def save_peak_values(save_path, data, freqs,
         for line in data_array:
             writer.writerow(line)
 
-def crop_function(raw, events):
-    return raw
 
 if __name__ == '__main__':
 
@@ -136,8 +134,8 @@ if __name__ == '__main__':
 
         raw._data = (raw._data - np.mean(raw._data)) / np.std(raw._data)
 
-        raw = crop_function(raw, events)
         raws.append(raw)
+
         names.append(raw.filenames[0].split('/')[-1].split('.fif')[0])
 
         splits_in_samples.append(splits_in_samples[-1] + len(raw))

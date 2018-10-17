@@ -10,7 +10,7 @@ from scipy.linalg import sqrtm
 from numpy.linalg import inv
 
 
-def _fastica(data, n_components, maxiter, conveps):
+def _fastica(data, n_components, maxiter, conveps, random_state):
     """ 
     Complex fastica depicted from
     (Bingham and Hyvarinen, 2000)
@@ -21,9 +21,17 @@ def _fastica(data, n_components, maxiter, conveps):
     def sym_decorrelation(w_):
         return np.dot(w_, sqrtm(inv(np.dot(np.conj(w_.T), w_))))
 
+    if isinstance(random_state, int):
+        random_state = np.random.RandomState(random_state)
+
     # get decorrelated initial mixing matrix
-    r_ = np.random.randn(n_components, n_components)
-    i_ = np.random.randn(n_components, n_components)
+    if random_state:
+        r_ = random_state.randn(n_components, n_components)
+        i_ = random_state.randn(n_components, n_components)
+    else:
+        r_ = np.random.randn(n_components, n_components)
+        i_ = np.random.randn(n_components, n_components)
+
     w_old = r_ + 1j * i_
     w_old = sym_decorrelation(w_old)
 
@@ -113,7 +121,8 @@ def _whiten(data, zerotolerance, n_components):
     return n_components, whitening, dewhitening, whitened
 
 
-def complex_ica(data, n_components, conveps=1e-7, maxiter=2000, zerotolerance=1e-7):
+def complex_ica(data, n_components, conveps=1e-7, maxiter=2000, zerotolerance=1e-7,
+                random_state=None):
     """
     solves y = (W^H)Vx, where 
       x is mixed multidimensional time series,
@@ -145,7 +154,7 @@ def complex_ica(data, n_components, conveps=1e-7, maxiter=2000, zerotolerance=1e
     n_components, whitening, dewhitening, whitened = _whiten(data, zerotolerance, n_components)
     
     print "Do ICA"
-    mixing_, ic_ = _fastica(whitened, n_components, maxiter, conveps)
+    mixing_, ic_ = _fastica(whitened, n_components, maxiter, conveps, random_state)
 
     # sort according to objective value
     objectives = []
@@ -160,3 +169,28 @@ def complex_ica(data, n_components, conveps=1e-7, maxiter=2000, zerotolerance=1e
 
     return sorted_ic, sorted_mixing, dewhitening, np.conj(sorted_mixing).T, whitening, mean
 
+
+class ComplexICA(object):
+    def __init__(self, n_components=20, conveps=1e-6, maxiter=2000, 
+                 zerotolerance=1e-7, random_state=None):
+        """
+        """
+        self.n_components = n_components
+        self.conveps = conveps
+        self.maxiter = maxiter
+        self.zerotolerance = zerotolerance
+        self.random_state = random_state
+
+    def fit(self, data):
+        sources, mixing, dewhitening, unmixing, whitening, mean = (
+            complex_ica(data,
+                        self.n_components,
+                        self.conveps,
+                        self.maxiter,
+                        self.zerotolerance,
+                        self.random_state))
+        self.unmixing = unmixing
+        self.mixing = mixing
+        self.whitening = whitening
+        self.dewhitening = dewhitening
+        self.sources = sources

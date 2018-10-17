@@ -10,7 +10,6 @@ import csv
 import argparse
 import os
 import time
-
 import multiprocessing
 
 from collections import OrderedDict
@@ -18,19 +17,16 @@ from collections import OrderedDict
 import pyface.qt
 
 import nibabel as nib
-
-from nilearn.plotting import plot_glass_brain
-
 import mne
 import numpy as np
 import matplotlib.pyplot as plt 
 import sklearn
 import pandas as pd
 import seaborn as sns
-
-from statsmodels.discrete.discrete_model import Logit
 import statsmodels.api as sm
 
+from statsmodels.discrete.discrete_model import Logit
+from nilearn.plotting import plot_glass_brain
 from sklearn.base import BaseEstimator
 from sklearn.utils import shuffle
 from sklearn.model_selection import cross_val_score
@@ -43,16 +39,9 @@ from scipy.signal import hilbert
 from scipy.signal import decimate
 from sklearn.decomposition import FastICA
 
-from signals.cibr.common import load_raw
 from signals.cibr.common import preprocess
-from signals.cibr.common import calculate_stft
-from signals.cibr.common import arrange_as_matrix
-from signals.cibr.common import arrange_as_tensor
 
 from icasso import Icasso
-from signals.cibr.ica.complex_ica import ComplexICA
-from signals.cibr.ica.complex_ica_alt import ComplexICA as ComplexICAAlt
-
 
 def create_vol_stc(raw, trans, subject, noise_cov, spacing, 
                    mne_method, mne_depth, subjects_dir):
@@ -558,50 +547,6 @@ def plot_stc_brainmaps(save_path, name, brainmaps, vertices):
             brain.save_image(path)
 
 
-def get_subject_spectrums(data, sfreq, subject_data):
-    spectrums = {}
-    for subject in subject_data:
-        intervals = subject['intervals']
-        start = subject['start']
-        name = subject['name']
-
-        if name not in spectrums:
-            spectrums[name] = {}
-
-        for ival_idx, (key, ivals) in enumerate(intervals.items()):
-            subspectrums = []
-            for ival in ivals:
-                x1 = int((start + ival[0]) * sfreq)
-                x2 = int((start + ival[1]) * sfreq)
-                # print str(key), str(name), str(x1), str(x2), str(data.shape)
-                subspectrum = data[:, :, x1:x2]
-                subspectrums.append(np.mean(subspectrum, axis=-1))
-            spectrums[name][key] = np.mean(subspectrums, axis=0)
-
-    return spectrums
-
-
-def plot_spectrums(save_path, name, key, data, vmin, vmax, freqs, page):
-
-    if save_path:
-        save_path = os.path.join(save_path, 'spectrums')
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
-
-    fig_ = plt.figure()
-    for idx in range(data.shape[0]):
-        ax = fig_.add_subplot(page, (data.shape[0] - 1) / page + 1, idx+1)
-        spectrum = data[idx]
-        ax.plot(freqs, spectrum)
-        ax.set_ylim(vmin[idx], vmax[idx])
-        ax.set_xlabel('Frequency (Hz)')
-        ax.set_ylabel('Amplitude (AU)')
-
-    if save_path:
-        sub_path = os.path.join(save_path, name + '_' + key + '.png')
-        fig_.savefig(sub_path, dpi=310)
-
-
 def plot_boxplot(title, save_path, save_name, coeffs, sigf_mask):
     """
     """
@@ -660,48 +605,6 @@ def plot_boxplot(title, save_path, save_name, coeffs, sigf_mask):
     if save_path:
         sub_path = os.path.join(save_path, save_name + '.png')
         fig_.savefig(sub_path, dpi=620)
-
-
-def save_means(save_path, data, sfreq, subject_data, keys):
-
-    # create necessary savepath
-    if save_path and not os.path.exists(save_path):
-        os.makedirs(save_path)
-
-    header = ['']
-    for subject in subject_data:
-        name = subject['name']
-        intervals = subject['intervals']
-        for key in intervals:
-            if key not in keys:
-                continue
-            header.append(name + ' [' + key + ']')
-
-    data_array = []
-    for comp_idx in range(data.shape[0]):
-        row = ['Component ' + str(comp_idx+1).zfill(2)]
-        for subject in subject_data:
-            intervals = subject['intervals']
-            start = subject['start']
-            for ival_idx, (key, ivals) in enumerate(intervals.items()):
-                if key not in keys:
-                    continue
-                submeans = []
-                for ival in ivals:
-                    x1 = int((start + ival[0]) * sfreq)
-                    x2 = int((start + ival[1]) * sfreq)
-                    # print str(x1), str(x2), str(data.shape)
-                    submeans.append(np.mean(data[comp_idx, x1:x2]))
-                row.append(np.mean(submeans))
-
-        data_array.append(row)
-
-    if save_path:
-        with open(os.path.join(save_path, 'power.csv'), 'wb') as f:
-            writer = csv.writer(f, delimiter=',')
-            writer.writerow(header)
-            for row in data_array:
-                writer.writerow(row)
 
 
 def extract_intervals_interoseption(events, sfreq, first_samp):
@@ -798,8 +701,6 @@ if __name__ == '__main__':
 
     save_path = cli_args.save_path if PLOT_TO_PICS else None
 
-    # hilbert_envelope, TFICA, eTFICA
-    ica_method = 'hilbert_envelope'
     src_method = 'vol'
     mne_method, mne_depth = 'dSPM', None
     band = (7, 14)
@@ -818,20 +719,11 @@ if __name__ == '__main__':
     # hilbert ica settings
     sampling_rate_hilbert = 1.0
 
-    # fourier envelope settings
-    window_in_seconds = 1.0
-    window_in_samples = np.power(2, np.ceil(np.log(
-        sampling_rate_raw * window_in_seconds)/np.log(2)))
-    # overlap_in_samples = (window_in_samples * 3) / 4
-    # sampling_rate_fourier = (sampling_rate_raw/window_in_samples)*4.0
-    overlap_in_samples = 0
-    sampling_rate_fourier = (sampling_rate_raw/window_in_samples)
-
     # process similarly to input data 
     empty_paths = cli_args.empty
     empty_raws = []
     for fname in empty_paths:
-        raw = load_raw(fname)
+        raw = mne.io.Raw(fname, preload=True)
         raw.resample(sampling_rate_raw)
         raw, _ = preprocess(raw, filter_=band)
         empty_raws.append(raw)
@@ -866,7 +758,7 @@ if __name__ == '__main__':
 
         print "Handling ", path
 
-        raw = load_raw(path)
+        raw = mne.io.Raw(path, preload=True)
         raw.resample(sampling_rate_raw)
         raw, events = preprocess(raw, filter_=band, min_duration=1)
 
@@ -879,6 +771,7 @@ if __name__ == '__main__':
             events, 
             raw.info['sfreq'], 
             raw.first_samp)
+        background_data = gather_background_data(subject)
 
         # intervals = extract_intervals_fdmsa_rest(subject)
 
@@ -908,16 +801,8 @@ if __name__ == '__main__':
         subject_item = {}
         subject_item['name'] = subject
         subject_item['intervals'] = intervals
+        subject_item['background_data'] = background_data
         subject_item['start'] = current_time
-
-        def prepare_fourier(data, take_abs=True):
-            freqs, times, data, _ = calculate_stft(
-                data, sampling_rate_raw, window_in_samples, overlap_in_samples, 
-                band[0], band[1], row_wise=True)
-            if take_abs:
-                return np.abs(arrange_as_matrix(data)), data.shape, freqs
-            else:
-                return arrange_as_matrix(data), data.shape, freqs
 
         def prepare_hilbert(data):
             # get envelope as abs of analytic signal
@@ -931,16 +816,7 @@ if __name__ == '__main__':
             decimated = decimate(decimated, factor)
             return decimated
 
-        if ica_method == 'hilbert_envelope':
-            data = prepare_hilbert(stc.data)
-        elif ica_method == 'TFICA':
-            data, fourier_shape, freqs = prepare_fourier(stc.data, 
-                                                         take_abs=False)
-            subject_item['shape'] = fourier_shape
-        elif ica_method == 'eTFICA':
-            data, fourier_shape, freqs = prepare_fourier(stc.data, 
-                                                         take_abs=True)
-            subject_item['shape'] = fourier_shape
+        data = prepare_hilbert(stc.data)
 
         subject_item['data'] = data
         current_time += len(raw.times) / raw.info['sfreq']
@@ -954,10 +830,6 @@ if __name__ == '__main__':
     data = np.concatenate([subject['data'] for subject 
                            in subject_data], axis=1)
 
-    if ica_method == 'eTFICA' or ica_method == 'TFICA':
-        fourier_shape = (fourier_shape[0], fourier_shape[1],
-                         sum([sbj['shape'][2] for sbj in subject_data])) 
-
     for subject in subject_data:
         del subject['data']
 
@@ -965,84 +837,56 @@ if __name__ == '__main__':
 
     print "Transforming with ICA.."
 
-    if ica_method == 'hilbert_envelope' or ica_method == 'eTFICA':
-        ica_params = {
-            'n_components': n_components_after_icasso,
-            'algorithm': 'parallel',
-            'whiten': True,
-            'max_iter': 10000,
-            'tol': 0.000000001
-        }
+    ica_params = {
+        'n_components': n_components_after_icasso,
+        'algorithm': 'parallel',
+        'whiten': True,
+        'max_iter': 10000,
+        'tol': 0.000000001
+    }
 
-        if use_icasso:
-            icasso = Icasso(FastICA, ica_params=ica_params, 
-                            iterations=icasso_iterations,
-                            bootstrap=True, vary_init=True)
+    if use_icasso:
+        icasso = Icasso(FastICA, ica_params=ica_params, 
+                        iterations=icasso_iterations,
+                        bootstrap=True, vary_init=True)
 
-            def bootstrap_fun(data, generator):
-                if len(subject_data) >=2:
-                    subject_idxs = generator.choice(range(len(subject_data)), 
-                                                    size=len(subject_data)-1, 
-                                                    replace=False)
-                else:
-                    subject_idxs = range(len(subject_data))
+        def bootstrap_fun(data, generator):
+            if len(subject_data) >=2:
+                subject_idxs = generator.choice(range(len(subject_data)), 
+                                                size=len(subject_data)-1, 
+                                                replace=False)
+            else:
+                subject_idxs = range(len(subject_data))
 
-                if ica_method == 'hilbert_envelope':
-                    sfreq = sampling_rate_hilbert
-                else:
-                    sfreq = sampling_rate_fourier * fourier_shape[1]
+            sfreq = sampling_rate_hilbert
 
-                print "Bootstrapping icasso."
+            print "Bootstrapping icasso."
 
-                sample_idxs = []
-                for subject_idx in subject_idxs:
-                    subject = subject_data[subject_idx]
-                    intervals = subject['intervals']
-                    start = subject['start']
-                    name = subject['name']
-                    print "Using " + name + " in icasso bootstrap."
-                    for ival_idx, (key, ivals) in enumerate(intervals.items()):
-                        for ival in ivals:
-                            x1 = int((start + ival[0]) * sfreq)
-                            x2 = int((start + ival[1]) * sfreq)
-                            sample_idxs.extend(range(x1, x2))
+            sample_idxs = []
+            for subject_idx in subject_idxs:
+                subject = subject_data[subject_idx]
+                intervals = subject['intervals']
+                start = subject['start']
+                name = subject['name']
+                print "Using " + name + " in icasso bootstrap."
+                for ival_idx, (key, ivals) in enumerate(intervals.items()):
+                    for ival in ivals:
+                        x1 = int((start + ival[0]) * sfreq)
+                        x2 = int((start + ival[1]) * sfreq)
+                        sample_idxs.extend(range(x1, x2))
 
-                # sample_idxs = generator.choice(range(data.shape[0]), size=data.shape[0])
+            # sample_idxs = generator.choice(range(data.shape[0]), size=data.shape[0])
 
-                return data[sample_idxs, :]
+            return data[sample_idxs, :]
 
-            print "Fitting icasso."
-            icasso.fit(data.T, fit_params={},
-                       unmixing_fun=lambda ica: ica.components_,
-                       bootstrap_fun=bootstrap_fun)
-        else:
-            ica = FastICA(**ica_params)
-            print "Fitting ica."
-            ica.fit(data.T)
-
-    elif ica_method == 'TFICA':
-        ica_params = {
-            'n_components': n_components_after_icasso,
-            'conveps': 1e-6,
-        }
-        if use_icasso:
-            icasso = Icasso(ComplexICA, ica_params=ica_params,
-                            iterations=icasso_iterations,
-                            bootstrap=True, vary_init=True)
-
-            def bootstrap_fun(data, generator):
-                sample_idxs = generator.choice(range(data.shape[1]), size=data.shape[1])
-                return data[:, sample_idxs]
-
-            print "Fitting icasso."
-            icasso.fit(data, fit_params={},
-                       unmixing_fun=lambda ica: np.dot(ica.unmixing, ica.whitening),
-                       bootstrap_fun=bootstrap_fun)
-        else:
-            # ica = ComplexICA(**ica_params)
-            ica = ComplexICAAlt(**ica_params)
-            print "Fitting ica.."
-            ica.fit(data)
+        print "Fitting icasso."
+        icasso.fit(data.T, fit_params={},
+                   unmixing_fun=lambda ica: ica.components_,
+                   bootstrap_fun=bootstrap_fun)
+    else:
+        ica = FastICA(**ica_params)
+        print "Fitting ica."
+        ica.fit(data.T)
 
     if use_icasso:
         print "Plotting dendrogram"
@@ -1075,19 +919,11 @@ if __name__ == '__main__':
         data = data[:amount, :]
         mixing = mixing[:, :amount]
     else:
-        if ica_method == 'TFICA':
-            unmixing = np.dot(ica.unmixing, ica.whitening)
-        elif ica_method == 'eTFICA' or ica_method == 'hilbert_envelope':
-            unmixing = ica.components_
-
+        unmixing = ica.components_
         data = np.dot(unmixing, data)
         mixing = np.linalg.pinv(unmixing)
 
     print "Mixing shape: " + str(mixing.shape)
-
-    if ica_method == 'eTFICA' or ica_method == 'TFICA':
-        print "Arranging as tensor"
-        data = arrange_as_tensor(data, fourier_shape)
 
     if src_method == 'vol':
         print "Plotting vol stc brainmaps from ICA mixing matrix.."
@@ -1098,70 +934,14 @@ if __name__ == '__main__':
         print "Plotting surf stc brainmaps from ICA mixing matrix.."
         plot_stc_brainmaps(save_path, 'mixing', np.abs(mixing.T), vertices)
 
-    if ica_method == 'hilbert_envelope':
-        print "Plotting time series.."
-        plot_time_series(save_path, data, page, sampling_rate_hilbert, 
-                         subject_data, keys=['mind', 'plan', 'anx'])
-    elif ica_method == 'eTFICA':
-        spectrums = get_subject_spectrums(data, sampling_rate_fourier,
-                                          subject_data)
-
-        # get vmax for all components
-        vmax = [0]*data.shape[0]
-        vmin = [None]*data.shape[0]
-        for subject in spectrums.keys():
-            for key, value in spectrums[subject].items():
-                for comp_idx in range(value.shape[0]):
-                    if np.max(value[comp_idx]**2) > vmax[comp_idx]:
-                        vmax[comp_idx] = np.max(value[comp_idx]**2)
-                    if vmin[comp_idx] == None or np.min(value[comp_idx]**2) < vmin[comp_idx]:
-                        vmin[comp_idx] = np.min(value[comp_idx]**2)
-
-        for idx in range(len(vmax)):
-            vmax[idx] = vmax[idx] / 3.0
-
-        print "Plotting spectrum.."
-        for subject in spectrums.keys():
-            for key, value in spectrums[subject].items():
-                plot_spectrums(save_path, subject, key, value**2, vmin, vmax, freqs, page)
-        
-        for key in spectrums.values()[0].keys():
-            spectrum = np.mean([struct[key] for struct in spectrums.values()], axis=0)
-            plot_spectrums(save_path, 'average', key, spectrum**2, vmin, vmax, freqs, page)
-
-    elif ica_method == 'TFICA':
-        spectrums = get_subject_spectrums(data, sampling_rate_fourier,
-                                          subject_data)
-
-        print "Plotting spectrum.."
-        for subject in spectrums.keys():
-            for key, value in spectrums[subject].items():
-                plot_spectrums(save_path, subject, key, np.abs(value)**2, 
-                               freqs, page)
-        
-        for key in spectrums.values()[0].keys():
-            spectrum = np.mean([np.abs(struct[key])**2 for struct 
-                                in spectrums.values()], axis=0)
-            plot_spectrums(save_path, 'average', key, spectrum, freqs, page)
-
-    # print "Saving data.."
-    # if ica_method == 'hilbert_envelope':
-    #     save_means(save_path, data, sampling_rate_hilbert, subject_data,
-    #                 keys=['mind', 'plan'])
-    # else:
-    #     # think about how to do this!!
-    #     # should I do it like before, to get the freq and amplitude
-    #     # with corr?
-    #     pass
+    print "Plotting time series.."
+    plot_time_series(save_path, data, page, sampling_rate_hilbert, 
+                     subject_data, keys=['mind', 'plan', 'anx'])
 
     ## Classification
 
-    if ica_method == 'eTFICA' or ica_method == 'TFICA':
-        features, labels = prepare_classification(
-            data, sampling_rate_fourier, subject_data, method='fourier')
-    else:
-        features, labels = prepare_classification(
-            data, sampling_rate_hilbert, subject_data, method='hilbert')
+    features, labels = prepare_classification(
+        data, sampling_rate_hilbert, subject_data, method='hilbert')
 
     def plot_and_regress(keys):
         print keys[0] + ' vs ' + keys[1] + ' all'
@@ -1191,17 +971,6 @@ if __name__ == '__main__':
                          comp_coeffs,
                          comp_significance)
 
-            # significant_coeffs = np.array([coef for idx, coef in enumerate(comp_coeffs)
-            #                                if comp_significance[idx]])
-
-            # title = ('Significant oefficients of ' + keys[0] + '-' + keys[1] + 
-            #          ' for each subject of component ' + str(comp_idx+1))
-            # save_name = 'comp_' + keys[0] + keys[1] + '_' + str(comp_idx+1).zfill(2)
-            # plot_boxplot(title, 
-            #              save_path, 
-            #              save_name, 
-            #              significant_coeffs)
-
     plot_and_regress(keys=['mind', 'anx'])
     plot_and_regress(keys=['anx', 'plan'])
     plot_and_regress(keys=['mind', 'plan'])
@@ -1222,73 +991,3 @@ if __name__ == '__main__':
                                     bootstrap_iterations)
 
     raise Exception('The end.')
-    
-    # print "Classify common"
-
-    # do_common_logistic_regression_subject_means(data, subject_data, 
-    #                                             sampling_rate_hilbert, 
-    #                                             keys=['depression', 'control'])
-
-    # do_common_logistic_regression(data, subject_data, sampling_rate_hilbert, 
-    #                               keys=['depression', 'control'])
-
-    # print "Classify individuals using any regressors"
-
-    # do_logistic_regression(data, subject_data, sampling_rate_hilbert,
-    #                        keys=['mind', 'anx'])
-
-    # print "Test every regressor for every subject"
-    # for idx in range(data.shape[0]):
-    #     print "Regression for component " + str(idx+1)
-
-    #     do_common_logistic_regression_subject_means(
-    #         data[:idx+1][idx:], subject_data, sampling_rate_hilbert, 
-    #         keys=['depression', 'control'])
-
-
-    print "Test every regressor for every subject"
-    component_accuracies = []
-    component_pvalues = []
-    for idx in range(data.shape[0]):
-        print "Regression for component " + str(idx+1)
-        accuracies, pvalues = do_logistic_regression(
-            data[:idx+1][idx:], subject_data, sampling_rate_hilbert,
-            keys=['plan', 'anx'],
-            print_summary=False)
-
-        component_accuracies.append(accuracies)
-        component_pvalues.append(pvalues)
-
-    for comp_idx in range(data.shape[0]):
-        print ("Subject accuracies for component " + str(comp_idx+1) + ": " +
-               str(['%0.2f' % acc for acc in component_accuracies[comp_idx]]))
-        print ("Subject pvalues for component " + str(comp_idx+1) + ": " +
-               str(['%0.2f' % pval for pval in component_pvalues[comp_idx]]))
-        print ("Mean accuracy for component " + str(comp_idx+1) + " is: " + 
-               str(np.mean(component_accuracies[comp_idx])))
-
-        vals = []
-        for sub_idx in range(len(component_accuracies[comp_idx])):
-            if component_pvalues[comp_idx][sub_idx] <= 0.05:
-                vals.append(component_accuracies[comp_idx][sub_idx])
-            else:
-                vals.append(0.5)
-
-        print ("Non-signicant as 0.5 mean for component " + 
-               str(comp_idx+1) + " is: " + str(np.mean(vals)))
-
-        vals = []
-        for sub_idx in range(len(component_accuracies[comp_idx])):
-            if component_pvalues[comp_idx][sub_idx] <= 0.05:
-                vals.append(component_accuracies[comp_idx][sub_idx])
-
-        if vals:
-            print ("Mean of only significant subjects for component " + 
-                   str(comp_idx+1) + " is: " + str(np.mean(vals)))
-            print "And amount of significant subjects is: " + str(len(vals))
-
-    for sub_idx in range(len(subject_data)):
-        print ("Component accuracies for subject " + str(sub_idx+1) + ": " + 
-               str(['%0.2f' % acc for acc in 
-                    np.array(component_accuracies)[:, sub_idx]]))
-
