@@ -41,7 +41,7 @@ def get_power(freqs, spectrum, band=(6,14)):
 
 
 def load_raw(fnames):
-    print "Loading data"
+    print("Loading data")
     if type(fnames) is not list:
         fnames = [fnames]
     raws = []
@@ -53,7 +53,7 @@ def load_raw(fnames):
 
 
 def preprocess(raw, filter_=(2, 35), min_duration=2):
-    print "Preprocessing."
+    print("Preprocessing.")
 
     events = mne.find_events(raw, shortest_event=1, min_duration=min_duration/raw.info['sfreq'], uint_cast=True)
     picks = mne.pick_types(raw.info, meg='grad')
@@ -67,7 +67,7 @@ def preprocess(raw, filter_=(2, 35), min_duration=2):
 
 
 def calculate_stft(data, sfreq, window, noverlap, hpass, lpass, row_wise=False):
-    print "Calculating stft."
+    print("Calculating stft.")
 
     rows = []
     if row_wise:
@@ -103,7 +103,7 @@ def calculate_istft(data, sfreq, window, noverlap, freq_pads):
     return timeseries
 
 def arrange_as_matrix(tensor):
-    print "Arranging as matrix"
+    print("Arranging as matrix")
     fts = [tensor[:, :, idx] for idx in range(tensor.shape[2])]
     return np.concatenate(fts, axis=1)
 
@@ -112,9 +112,9 @@ def arrange_as_tensor(mat, shape):
     
     parts = np.split(mat, shape[2], axis=1)
 
-    xw = mat.shape[0]
-    yw = mat.shape[1]/shape[2]
-    zw = shape[2]
+    xw = int(mat.shape[0])
+    yw = int(mat.shape[1]/shape[2])
+    zw = int(shape[2])
 
     tensor = np.empty((xw, yw, zw), dtype=mat.dtype)
     for idx, part in enumerate(parts):
@@ -264,7 +264,7 @@ def plot_topomaps(save_path, dewhitening, mixing, mean, raw_info, page, componen
         # save plotted maps
         if save_path:
             fig_.savefig(os.path.join(save_path, ch_type + '_topo.png'), 
-                         dpi=310)
+                         dpi=620)
 
 
 def plot_mean_spectra(save_path, data, freqs, page, component_idxs):

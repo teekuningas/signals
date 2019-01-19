@@ -5,8 +5,6 @@ if PLOT_TO_PICS:
     matplotlib.rc('font', size=3)
     matplotlib.use('Agg')
 
-import pyface.qt
-
 import sys
 import csv
 import argparse
@@ -16,12 +14,15 @@ import multiprocessing
 
 from collections import OrderedDict
 
+import pyface.qt
+
 import nibabel as nib
 import mne
 import numpy as np
 import matplotlib.pyplot as plt 
 import sklearn
 import pandas as pd
+import seaborn as sns
 import statsmodels.api as sm
 
 from statsmodels.discrete.discrete_model import Logit
@@ -29,19 +30,19 @@ from statsmodels.multivariate.cancorr import CanCorr
 from nilearn.plotting import plot_glass_brain
 from sklearn.base import BaseEstimator
 from sklearn.utils import shuffle
+from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import cross_val_predict
 from sklearn.model_selection import permutation_test_score
 from sklearn import metrics
 from sklearn.preprocessing import scale
 from sklearn.cross_decomposition import CCA
 
+from scipy.signal import hilbert
+from scipy.signal import decimate
 from sklearn.decomposition import FastICA
 from sklearn.decomposition import PCA
 
-from scipy.signal import hilbert
-from scipy.signal import decimate
-
-# from icasso import Icasso
+from icasso import Icasso
 
 from signals.cibr.common import preprocess
 
@@ -59,7 +60,7 @@ def create_vol_stc(raw, trans, subject, noise_cov, spacing,
 
     src = mne.source_space.read_source_spaces(src_fname)
 
-    print("Creating forward solution..")
+    print "Creating forward solution.."
     fwd = mne.make_forward_solution(
         info=raw.info, 
         trans=trans, 
@@ -69,7 +70,7 @@ def create_vol_stc(raw, trans, subject, noise_cov, spacing,
         eeg=False,
         verbose='warning')
 
-    print("Creating inverse operator..")
+    print "Creating inverse operator.."
     inv = mne.minimum_norm.make_inverse_operator(
         info=raw.info,
         forward=fwd,
@@ -79,7 +80,7 @@ def create_vol_stc(raw, trans, subject, noise_cov, spacing,
         limit_depth_chs=False,
         verbose='warning')
 
-    print("Applying inverse operator..")
+    print "Applying inverse operator.."
     stc = mne.minimum_norm.apply_inverse_raw(
         raw=raw,
         inverse_operator=inv,
@@ -101,7 +102,7 @@ def create_stc(raw, trans, subject, noise_cov, spacing,
                        subject+'-inner_skull-bem-sol.fif')
 
     # create surface-based source space
-    print("Creating source space..")
+    print "Creating source space.."
     src = mne.setup_source_space(
         subject=subject,
         spacing=spacing,
@@ -109,7 +110,7 @@ def create_stc(raw, trans, subject, noise_cov, spacing,
         subjects_dir=subjects_dir,
         verbose='warning')
 
-    print("Creating forward solution..")
+    print "Creating forward solution.."
     fwd = mne.make_forward_solution(
         info=raw.info, 
         trans=trans, 
@@ -119,7 +120,7 @@ def create_stc(raw, trans, subject, noise_cov, spacing,
         eeg=False,
         verbose='warning')
 
-    print("Creating inverse operator..")
+    print "Creating inverse operator.."
     inv = mne.minimum_norm.make_inverse_operator(
         info=raw.info,
         forward=fwd,
@@ -130,7 +131,7 @@ def create_stc(raw, trans, subject, noise_cov, spacing,
         limit_depth_chs=False,
         verbose='warning')
 
-    print("Applying inverse operator..")
+    print "Applying inverse operator.."
     stc = mne.minimum_norm.apply_inverse_raw(
         raw=raw,
         inverse_operator=inv,
@@ -275,11 +276,11 @@ def do_logistic_regression_ind(features, labels, keys, bootstrap_iterations):
     # score, _, pvalue = permutation_test_score(
     #     logit, X, y, scoring='accuracy', cv=5, n_permutations=500)
 
-    print("Bootstrapping regression.")
+    print "Bootstrapping regression."
     bootstrap_results = []
     for bootstrap_idx in range(bootstrap_iterations):
         if bootstrap_idx % 100 == 0:
-            print("Took " + str(bootstrap_idx) + " bootstrap samples already.")
+            print "Took " + str(bootstrap_idx) + " bootstrap samples already."
 
         sample_blocks = np.random.choice(range(len(label_blocks)), size=len(label_blocks), replace=True)
         sample_X = []
@@ -298,7 +299,7 @@ def do_logistic_regression_ind(features, labels, keys, bootstrap_iterations):
         regression_results = logit.fit(sample_X, sample_y)
         bootstrap_results.append(regression_results.params[1:])
     
-    print("Boostrap results: ")
+    print "Boostrap results: "
     params = []
     significance = []
     bootstrap_results = np.array(bootstrap_results)
@@ -308,7 +309,7 @@ def do_logistic_regression_ind(features, labels, keys, bootstrap_iterations):
         params.append(mean)
         sigf = False if lower < 0 < upper else True
         significance.append(sigf)
-        print("Component " + str(idx+1) + ": " + str(mean) + ',' + str(lower) + ', ' + str(upper) + ', ' + str(sigf))
+        print "Component " + str(idx+1) + ": " + str(mean) + ',' + str(lower) + ', ' + str(upper) + ', ' + str(sigf)
 
     # print "Mean accuracy: " + str(score)
     # print "P value: " + str(pvalue)
@@ -339,7 +340,7 @@ def do_logistic_regression_subjects(features, labels, keys, bootstrap_iterations
         train_subject_idxs = all_idxs[:idx] + all_idxs[idx+1:]
 
         # train classifier
-        print("Training classifier using all but subject " + str(idx+1))
+        print "Training classifier using all but subject " + str(idx+1)
         train_X = []
         train_y = []
         for subject_idx in train_subject_idxs:
@@ -383,12 +384,12 @@ def do_logistic_regression_subjects(features, labels, keys, bootstrap_iterations
         accuracy = sklearn.metrics.accuracy_score(test_y, predicted)
         accuracies.append(accuracy)
 
-    print("Mean accuracy score: " + str(np.mean(accuracies)))
-    print("Individual scores: ")
+    print "Mean accuracy score: " + str(np.mean(accuracies))
+    print "Individual scores: "
     for idx, accuracy in enumerate(accuracies):
-       print("Subject " + str(idx+1) + ": " + str(accuracy))
+       print  "Subject " + str(idx+1) + ": " + str(accuracy)
 
-    print("Find confidence intervals for coefficients using bootstrap")
+    print "Find confidence intervals for coefficients using bootstrap"
     feature_blocks, label_blocks = [], []
     for idx in range(len(features)):
         sub_feat_blocks, sub_lab_blocks = transform_to_blocks(features[idx], 
@@ -396,11 +397,11 @@ def do_logistic_regression_subjects(features, labels, keys, bootstrap_iterations
         feature_blocks.extend(sub_feat_blocks)
         label_blocks.extend(sub_lab_blocks)
         
-    print("Bootstrapping regression.")
+    print "Bootstrapping regression."
     bootstrap_results = []
     for bootstrap_idx in range(bootstrap_iterations):
         if bootstrap_idx % 100 == 0:
-            print("Took " + str(bootstrap_idx) + " bootstrap samples already.")
+            print "Took " + str(bootstrap_idx) + " bootstrap samples already."
 
         sample_blocks = np.random.choice(range(len(label_blocks)), size=len(label_blocks), replace=True)
         sample_X = []
@@ -415,36 +416,13 @@ def do_logistic_regression_subjects(features, labels, keys, bootstrap_iterations
         regression_results = logit.fit(sample_X, sample_y)
         bootstrap_results.append(regression_results.params[1:])
     
-    print("Boostrap results: ")
+    print "Boostrap results: "
     bootstrap_results = np.array(bootstrap_results)
     for idx in range(bootstrap_results.shape[1]):
         mean = np.mean(bootstrap_results[:, idx])
         lower, upper = np.percentile(bootstrap_results[:, idx], [0.2, 99.8])
         sigf = False if lower < 0 < upper else True
-        print("Component " + str(idx+1) + ": " + str(mean) + ',' + str(lower) + ', ' + str(upper) + ', ' + str(sigf))
-
-def plot_time_series_simple(save_path, data, page, name):
-
-    # create necessary savepath
-    if save_path and not os.path.exists(save_path):
-        os.makedirs(save_path)
-
-    fig_ = plt.figure()
-    for comp_idx in range(data.shape[0]):
-
-        series = data[comp_idx]
-        axes = fig_.add_subplot(page, (data.shape[0] - 1) / page + 1, 
-                                comp_idx+1)
-
-        axes.plot(range(len(series)), series,
-                  linewidth=0.5)
-        axes.set_xlabel = 'Sample'
-        axes.set_ylabel = 'Value'
-
-    # save plotted spectra
-    if save_path:
-        fig_.tight_layout()
-        fig_.savefig(os.path.join(save_path, name + '.png'), dpi=620)
+        print "Component " + str(idx+1) + ": " + str(mean) + ',' + str(lower) + ', ' + str(upper) + ', ' + str(sigf)
 
 
 def plot_time_series(save_path, data, page, sfreq, subject_data, keys, name):
@@ -580,7 +558,7 @@ def plot_barcharts(save_path, components, savename, names):
 
     y_pos = np.arange(len(names))
     for idx, component in enumerate(components):
-        print("Plotting barchart")
+        print "Plotting barchart"
 
         fig_, ax = plt.subplots()
 
@@ -603,8 +581,6 @@ def plot_barcharts(save_path, components, savename, names):
 def plot_boxplot(title, save_path, save_name, coeffs, sigf_mask):
     """
     """
-
-    import seaborn as sns
 
     # create necessary savepath
     if save_path:
@@ -763,7 +739,7 @@ def gather_background_data_meditation(subject, raw, events, csv_path, tasks):
                     continue
 
                 if len(ivals)/2 != len(csv_row[1:]):
-                    print(str(len(ivals)) + str(len(csv_row)))
+                    print str(len(ivals)), str(len(csv_row))
                     import pdb; pdb.set_trace()
                     raise Exception('Amount of tasks does not match in csv and raw')
 
@@ -899,7 +875,7 @@ if __name__ == '__main__':
     mne_method, mne_depth = 'dSPM', None
     band = (7, 14)
     sampling_rate_raw = 100.0
-    tasks = ['mind', 'plan', 'anx']
+    tasks = ['mind', 'plan']
     
     surf_spacing = 'ico3'
     vol_spacing = '10'
@@ -920,7 +896,7 @@ if __name__ == '__main__':
     empty_raw = mne.concatenate_raws(empty_raws)
     empty_raws = []
 
-    print("Creating sensor covariance matrix..")
+    print "Creating sensor covariance matrix.."
     noise_cov = mne.compute_raw_covariance(
         empty_raw, 
         method='empirical')
@@ -942,11 +918,11 @@ if __name__ == '__main__':
         # this is for fdmsa
         # subject = '_'.join((fname.split('_')[:1] + fname.split('_')[2:-2]))
 
-        print("Using MRI subject: " + subject)
+        print "Using MRI subject: " + subject
 
         trans = os.path.join(folder, subject + '-trans.fif')
 
-        print("Handling " + path)
+        print "Handling ", path
 
         raw = mne.io.Raw(path, preload=True)
         raw.resample(sampling_rate_raw)
@@ -963,10 +939,10 @@ if __name__ == '__main__':
             raw.first_samp,
             tasks)
 
-        # print "Gathering background data"
-        # bg_header, bg_data = gather_background_data_meditation(
-        #     subject, raw, events, cli_args.csv_path,
-        #     tasks)
+        print "Gathering background data"
+        bg_header, bg_data = gather_background_data_meditation(
+            subject, raw, events, cli_args.csv_path,
+            tasks)
 
         # intervals = extract_intervals_fdmsa_rest(subject)
 
@@ -997,7 +973,7 @@ if __name__ == '__main__':
         subject_item = {}
         subject_item['name'] = subject
         subject_item['intervals'] = intervals
-        # subject_item['bg_header'] = bg_header
+        subject_item['bg_header'] = bg_header
         subject_item['start'] = current_time
 
         def prepare_hilbert(data):
@@ -1012,14 +988,14 @@ if __name__ == '__main__':
             decimated = decimate(decimated, factor)
             return decimated
 
-        # decim_factor = int(((sampling_rate_raw / 5.0) / sampling_rate_hilbert))
-        # bg_data = decimate(decimate(bg_data, 5), decim_factor)
+        decim_factor = int(((sampling_rate_raw / 5.0) / sampling_rate_hilbert))
+        bg_data = decimate(decimate(bg_data, 5), decim_factor)
 
-        print("Prepare using hilbert")
+        print "Prepare using hilbert"
         data = prepare_hilbert(stc.data)
 
         subject_item['data'] = data
-        # subject_item['bg_data'] = bg_data
+        subject_item['bg_data'] = bg_data
 
         current_time += len(raw.times) / raw.info['sfreq']
 
@@ -1027,64 +1003,22 @@ if __name__ == '__main__':
 
         subject_data.append(subject_item)
 
-    print("Preparing data for ICA..")
+    print "Preparing data for ICA.."
 
-    whitened_datasets = []
-    whitened_mixings = []
-    n_whitening_components = 15
-    for subject in subject_data:
-        data = subject['data']
+    # then concatenate them datawise followed by subjectwise concat
+    # then look what happens with ICA, and decide whether to use ICA twice
+    # also decide whether to normalize the state data
 
-        # pca = sklearn.decomposition.PCA(n_components=n_whitening_components, whiten=True)
-        # pca.fit(data.T)
-        # pca_unmixing = pca.components_
-        # whitened_mixings.append(np.linalg.pinv(pca_unmixing))
-        # whitened_datasets.append(np.dot(pca_unmixing, data))
-
-        ica_params = {
-            'n_components': n_whitening_components,
-            'algorithm': 'parallel',
-            'whiten': True,
-            'max_iter': 10000,
-            'tol': 0.000000001
-        }
-        ica = FastICA(**ica_params)
-        ica.fit(data.T)
-        ica_unmixing = ica.components_
-        whitened_mixings.append(np.linalg.pinv(ica_unmixing))
-        whitened_datasets.append(np.dot(ica_unmixing, data))
-
-    blocks = []
-    for subject_idx, subject in enumerate(subject_data):
-        data = whitened_datasets[subject_idx]
-        intervals = subject['intervals']
-        name = subject['name']
-
-        constructed_set = []
-
-        for task in tasks:
-            for ival_idx, (key, ivals) in enumerate(intervals.items()):
-                if key == task:
-                    for ival in [ivals[idx] for idx in 
-                                 np.random.permutation(len(ivals))]:
-                        x1 = int(ival[0] * sampling_rate_hilbert)
-                        x2 = int(ival[1] * sampling_rate_hilbert)
-                        import pdb; pdb.set_trace()
-
-                        constructed_set.append(np.mean(data[:, range(x1,x2)], axis=1)[:, np.newaxis])
-        blocks.append(np.concatenate(constructed_set, axis=1))
-
-    brain_data = np.vstack(blocks)
 
     # concatenate over subjects
-    # brain_data = np.concatenate([subject['data'] for subject 
-    #                              in subject_data], axis=1)
-    # bg_data = np.concatenate([subject['bg_data'] for subject
-    #                           in subject_data], axis=1)
+    brain_data = np.concatenate([subject['data'] for subject 
+                                 in subject_data], axis=1)
+    bg_data = np.concatenate([subject['bg_data'] for subject
+                              in subject_data], axis=1)
 
-    # for subject in subject_data:
-    #     del subject['data']
-    #     del subject['bg_data']
+    for subject in subject_data:
+        del subject['data']
+        del subject['bg_data']
 
     # brain_pca = sklearn.decomposition.PCA(whiten=True)
     # brain_pca.fit(brain_data.T)
@@ -1092,90 +1026,19 @@ if __name__ == '__main__':
     # brain_pca_mixing = np.linalg.pinv(brain_pca_unmixing)
     # brain_data_wh = np.dot(brain_pca_unmixing, brain_data)
 
-    # ica_params = {
-    #     'n_components': 24,
-    #     'algorithm': 'parallel',
-    #     'whiten': True,
-    #     'max_iter': 10000,
-    #     'tol': 0.000000001
-    # }
-    # "sparse"
-    sparse_pca = sklearn.decomposition.PCA(n_components=10)
-    sparse_pca.fit(brain_data.T)
-    sparse_pca_unmixing = sparse_pca.components_
-    sparse_pca_mixing = np.linalg.pinv(sparse_pca_unmixing)
-    fused_data = np.dot(sparse_pca_unmixing, brain_data)
+    ica_params = {
+        'n_components': 24,
+        'algorithm': 'parallel',
+        'whiten': True,
+        'max_iter': 10000,
+        'tol': 0.000000001
+    }
 
-    # sparse_pca = sklearn.decomposition.SparsePCA(
-    #     n_components=10, 
-    #     alpha=0.2, 
-    #     ridge_alpha=0.05,
-    #     normalize_components=True)
-    # sparse_pca.fit(brain_data.T)
-    # sparse_pca_unmixing = sparse_pca.components_
-    # sparse_pca_mixing = np.linalg.pinv(sparse_pca_unmixing)
-    # fused_data = np.dot(sparse_pca_unmixing, brain_data)
+    # brain_ica = FastICA(**ica_params)
+    # brain_ica.fit(brain_data.T)
+    # brain_ica_unmixing = brain_ica.components_
 
-    ## brain_ica = FastICA(**ica_params)
-    ## brain_ica.fit(brain_data.T)
-    ## brain_ica_unmixing = brain_ica.components_
-
-    for subject_idx in range(len(subject_data)):
-        subject_mixing = whitened_mixings[subject_idx]
-        idxs = range(subject_idx, subject_idx + subject_mixing.shape[1])
-        data_to_plot = np.dot(subject_mixing, sparse_pca_mixing[idxs])
-        name = 'mixing_' + str(subject_idx+1).zfill(3)
-
-        if src_method == 'vol':
-            print("Plotting vol stc brainmaps from ICA mixing matrix..")
-            plot_vol_stc_brainmaps(save_path, name, np.abs(data_to_plot.T), vertices,
-                                   vol_spacing, subjects_dir)
-
-        else:
-            print("Plotting surf stc brainmaps from ICA mixing matrix..")
-            plot_stc_brainmaps(save_path, name, np.abs(data_to_plot.T), vertices)
-
-    for component_idx in range(sparse_pca_mixing.shape[1]):
-        n_comps = n_whitening_components
-        data = [sum(sparse_pca_mixing[:, component_idx][idx*n_comps:(idx+1)*n_comps]**2)
-                for idx in range(len(subject_data))]
-        data = np.array(data)[np.newaxis, :]
-
-        plot_barcharts(save_path, data, 'subject_weights_' + str(component_idx+1).zfill(2),
-                       [str(sub_idx+1).zfill(3) for sub_idx in range(len(subject_data))])
-
-    # plot fused data
-    plot_time_series_simple(save_path, fused_data, page, name='fused_data')
-
-    for component_idx in range(sparse_pca_mixing.shape[1]):
-        n_comps = n_whitening_components
-        comp_dataset = []
-        for subject_idx in range(len(subject_data)):
-            idxs = range(subject_idx*n_comps, (subject_idx+1)*n_comps)
-            subject_pca_unmixing = np.zeros(sparse_pca_unmixing.shape)
-            subject_pca_unmixing[:, idxs] = sparse_pca_unmixing[:, idxs]
-            subject_series = np.dot(subject_pca_unmixing, brain_data)
-            comp_dataset.append(subject_series[component_idx])
-        comp_dataset = np.array(comp_dataset)
-
-        name = 'component_' + str(component_idx+1).zfill(2)
-
-        save_folder = None
-        if save_path:
-            save_folder = os.path.join(save_path, 'cca_series')
-
-        plot_time_series_simple(save_folder, comp_dataset, page, name=name)
-    
-    import pdb; pdb.set_trace()
-    print("miau")
-    # exciting
-     
-    # draw subject specific time series and fused
-    # how to test different regulations
-
-    raise Exception('Kissa')
-
-    print("Using iCA")
+    print "Using iCA"
 
     brain_icasso = Icasso(FastICA, ica_params=ica_params,
                     iterations=50, bootstrap=False,
@@ -1195,12 +1058,12 @@ if __name__ == '__main__':
     brain_data_wh = np.dot(brain_ica_unmixing, brain_data)
 
     if src_method == 'vol':
-        print("Plotting vol stc brainmaps from ICA mixing matrix..")
+        print "Plotting vol stc brainmaps from ICA mixing matrix.."
         plot_vol_stc_brainmaps(save_path, 'mixing', np.abs(brain_ica_mixing.T), vertices,
                                vol_spacing, subjects_dir)
 
     else:
-        print("Plotting surf stc brainmaps from ICA mixing matrix..")
+        print "Plotting surf stc brainmaps from ICA mixing matrix.."
         plot_stc_brainmaps(save_path, 'mixing', np.abs(brain_ica_mixing.T), vertices)
 
     # print "Plotting time series.."
@@ -1228,7 +1091,7 @@ if __name__ == '__main__':
     # brain_data_wh = np.concatenate(brain_data_wh_tmp, axis=1)
     # del brain_data_wh_tmp
 
-    print("Plotting time series..")
+    print "Plotting time series.."
     plot_time_series(save_path, brain_data_wh, page, sampling_rate_hilbert, 
                      subject_data, keys=['mind', 'plan', 'anx'], name='ica_series')
 
@@ -1243,17 +1106,17 @@ if __name__ == '__main__':
 
     cca_amount = min(len(subject_data[0]['bg_header']), brain_data_wh.shape[0])
 
-    print("Plotting time series..")
+    print "Plotting time series.."
     plot_time_series(save_path, brain_data_wh, page, sampling_rate_hilbert, 
                      subject_data, keys=['mind', 'plan', 'anx'], name='ica_series_filtered')
 
     if src_method == 'vol':
-        print("Plotting vol stc brainmaps from ICA mixing matrix..")
+        print "Plotting vol stc brainmaps from ICA mixing matrix.."
         plot_vol_stc_brainmaps(save_path, 'mixing_filtered', np.abs(brain_ica_mixing.T), vertices,
                                vol_spacing, subjects_dir)
 
     else:
-        print("Plotting surf stc brainmaps from ICA mixing matrix..")
+        print "Plotting surf stc brainmaps from ICA mixing matrix.."
         plot_stc_brainmaps(save_path, 'mixing_filtered', np.abs(brain_ica_mixing.T), vertices)
 
     # zscore bg data
@@ -1284,7 +1147,7 @@ if __name__ == '__main__':
             # pick only task-data
             for ival_idx, (key, ivals) in enumerate(intervals.items()):
                 for ival in ivals:
-                    # print(str(key), str(ival), str(len(bg_data[0])))
+                    # print str(key), str(ival), str(len(bg_data[0]))
                     x1 = int((start + ival[0]) * sampling_rate_hilbert)
                     x2 = int((start + ival[1]) * sampling_rate_hilbert)
                     # task_idxs.extend(range(x1, x2))
@@ -1299,7 +1162,7 @@ if __name__ == '__main__':
         # task_bg_data = bg_data_sc[:, task_idxs]
 
         if cca_impl == 'statsmodels': 
-            print("Using CCA from statsmodels.")
+            print "Using CCA from statsmodels."
             cancorr = CanCorr(task_brain_data.T, task_bg_data.T)
 
             brain_weights = cancorr.y_cancoef.T
@@ -1307,9 +1170,9 @@ if __name__ == '__main__':
             brain_scores = np.dot(brain_weights, task_brain_data)
             bg_scores = np.dot(bg_weights, task_bg_data)
 
-            print(cancorr.corr_test().summary())
+            print cancorr.corr_test().summary()
         elif cca_impl == 'sklearn':
-            print("Using CCA from sklearn.")
+            print "Using CCA from sklearn."
             cca = CCA(n_components=cca_amount)
             cca.fit(task_brain_data.T, task_bg_data.T)
 
@@ -1332,40 +1195,40 @@ if __name__ == '__main__':
         range(len(subject_data)),
         cca_impl='sklearn')
 
-    print("Correlation coefficients for sm: ")
+    print "Correlation coefficients for sm: "
     for cca_idx in range(cca_amount):
-        print(str(cca_idx+1))
-        print(str(np.corrcoef(sm_brain_scores[cca_idx], sm_bg_scores[cca_idx])[0,1]))
+        print str(cca_idx+1)
+        print str(np.corrcoef(sm_brain_scores[cca_idx], sm_bg_scores[cca_idx])[0,1])
 
-    print("Correlation coefficients for sl: ")
+    print "Correlation coefficients for sl: "
     for cca_idx in range(cca_amount):
-        print(str(cca_idx+1))
-        print(str(np.corrcoef(sl_brain_scores[cca_idx], sl_bg_scores[cca_idx])[0,1]))
+        print str(cca_idx+1)
+        print str(np.corrcoef(sl_brain_scores[cca_idx], sl_bg_scores[cca_idx])[0,1])
 
-    print("Weights for sm: ")
+    print "Weights for sm: "
     for cca_idx in range(cca_amount):
-        print(str(cca_idx+1))
-        print("Brain: " )
-        print(str(sm_brain_weights[cca_idx]))
-        print("Bg: " )
-        print(str(sm_bg_weights[cca_idx]))
+        print str(cca_idx+1)
+        print "Brain: " 
+        print str(sm_brain_weights[cca_idx])
+        print "Bg: " 
+        print str(sm_bg_weights[cca_idx])
 
-    print("Weights for sl: ")
+    print "Weights for sl: "
     for cca_idx in range(cca_amount):
-        print(str(cca_idx+1))
-        print("Brain: " )
-        print(str(sl_brain_weights[cca_idx]))
-        print("Bg: " )
-        print(str(sl_bg_weights[cca_idx]))
+        print str(cca_idx+1)
+        print "Brain: " 
+        print str(sl_brain_weights[cca_idx])
+        print "Bg: " 
+        print str(sl_bg_weights[cca_idx])
 
     # brain_weights_bs = []
     # brain_scores_bs = []
     # bg_weights_bs = []
     # bg_scores_bs = []
-    # print("Bootstrapping")
+    # print "Bootstrapping"
     # for bootstrap_idx in range(bootstrap_iterations):
     #     if bootstrap_idx % 10 == 0:
-    #         print(str(bootstrap_idx+1) + 'th bootstrap.')
+    #         print str(bootstrap_idx+1) + 'th bootstrap.'
     #     subject_count = len(subject_data)
     #     bs_idxs = np.random.choice(range(subject_count), 
     #                                size=subject_count,
@@ -1398,25 +1261,25 @@ if __name__ == '__main__':
     # bg_weights_upper = np.percentile(bg_weights_bs, 97.5, axis=0)
     # bg_weights_lower = np.percentile(bg_weights_bs, 2.5, axis=0)
     # 
-    # print("CCA statistics, correlations:")
+    # print "CCA statistics, correlations:"
     # for cca_idx in range(cca_amount):
     #     correlations = [np.corrcoef(brain_scores_bs[bs_idx][cca_idx], bg_scores_bs[bs_idx][cca_idx])[0, 1]
     #                     for bs_idx in range(bootstrap_iterations)]
-    #     print(str(np.percentile(correlations, 2.5, axis=0)), str(np.mean(correlations, axis=0)), str(np.percentile(correlations, 97.5, axis=0)))
+    #     print str(np.percentile(correlations, 2.5, axis=0)), str(np.mean(correlations, axis=0)), str(np.percentile(correlations, 97.5, axis=0))
     #
-    # print("CCA statistics, brain weights:")
+    # print "CCA statistics, brain weights:"
     # for iv in range(brain_weights.shape[0]):
-    #     print(str(iv+1) + '. pair:')
+    #     print str(iv+1) + '. pair:'
     #     for jv in range(brain_weights.shape[1]):
-    #         print(str(jv+1), str(brain_weights_lower[iv, jv]), )
-    #         print(str(brain_weights[iv, jv]), str(brain_weights_upper[iv, jv]))
+    #         print str(jv+1), str(brain_weights_lower[iv, jv]), 
+    #         print str(brain_weights[iv, jv]), str(brain_weights_upper[iv, jv])
 
-    # print("CCA statistics, bg weights:")
+    # print "CCA statistics, bg weights:"
     # for iv in range(bg_weights.shape[0]):
-    #     print(str(iv+1) + '. pair:')
+    #     print str(iv+1) + '. pair:'
     #     for jv in range(bg_weights.shape[1]):
-    #         print(str(jv+1), str(bg_weights_lower[iv, jv]), )
-    #         print(str(bg_weights[iv, jv]), str(bg_weights_upper[iv, jv]))
+    #         print str(jv+1), str(bg_weights_lower[iv, jv]), 
+    #         print str(bg_weights[iv, jv]), str(bg_weights_upper[iv, jv])
 
     def ica_cca():
         # bg_pca = sklearn.decomposition.PCA(whiten=True)
@@ -1427,11 +1290,11 @@ if __name__ == '__main__':
 
         stacked_data_wh = np.vstack([brain_data_wh, bg_data_wh])
 
-        print("Shape before ICA: " + str(stacked_data_wh.shape))
+        print "Shape before ICA: " + str(stacked_data_wh.shape)
 
-        print("Transforming with ICA..")
+        print "Transforming with ICA.."
 
-        print("Fitting ica to concatenated whitened data.")
+        print "Fitting ica to concatenated whitened data."
         ica_params = {
             'n_components': 16,
             'algorithm': 'parallel',
@@ -1465,7 +1328,7 @@ if __name__ == '__main__':
         brain_weights = brain_weights[idxs][:cca_amount]
         bg_weights = bg_weights[idxs][:cca_amount]
 
-    print("Plotting barchart")
+    print "Plotting barchart"
     plot_barcharts(save_path, sl_bg_weights, 'sl_bg_weights',
                    subject_data[0]['bg_header'])
     plot_barcharts(save_path, sl_brain_weights, 'sl_brain_weights', 
@@ -1493,10 +1356,10 @@ if __name__ == '__main__':
         data, sampling_rate_hilbert, subject_data, method='hilbert')
 
     def plot_and_regress(keys):
-        print(keys[0] + ' vs ' + keys[1] + ' all')
+        print keys[0] + ' vs ' + keys[1] + ' all'
         coefficients, significance = [], []
         for idx in range(len(subject_data)):
-            print("Classification for " + subject_data[idx]['name'])
+            print "Classification for " + subject_data[idx]['name']
             coeffs, sigfs = do_logistic_regression_ind(features[idx], labels[idx],
                                                        keys, bootstrap_iterations)
             coefficients.append(coeffs)
@@ -1507,7 +1370,7 @@ if __name__ == '__main__':
 
         # plot boxplots for each component
         for comp_idx in range(coefficients.shape[1]):
-            print("Plot boxplot for component " + str(comp_idx+1))
+            print "Plot boxplot for component " + str(comp_idx+1)
             comp_coeffs = coefficients[:, comp_idx]
             comp_significance = significance[:, comp_idx]
 
@@ -1524,17 +1387,17 @@ if __name__ == '__main__':
     # plot_and_regress(keys=['anx', 'plan'])
     # plot_and_regress(keys=['mind', 'plan'])
 
-    print("Mind vs anx")
+    print "Mind vs anx"
     do_logistic_regression_subjects(features, labels,
                                     ['mind', 'anx'],
                                     bootstrap_iterations)
 
-    print("Anx vs plan")
+    print "Anx vs plan"
     do_logistic_regression_subjects(features, labels,
                                     ['anx', 'plan'],
                                     bootstrap_iterations)
 
-    print("Mind vs plan")
+    print "Mind vs plan"
     do_logistic_regression_subjects(features, labels,
                                     ['mind', 'plan'],
                                     bootstrap_iterations)

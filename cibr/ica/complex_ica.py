@@ -59,17 +59,17 @@ def _fastica(data, n_components, maxiter, conveps, random_state):
 
         # show something
         if j%30 == 0:
-            print "Criterion:", str(1 - criterion), 
-            print "- Conveps:", str(conveps),
-            print "- i:", str(j), "- maxiter:", str(maxiter) 
+            print("Criterion: " + str(1 - criterion) + 
+                  " - Conveps: " + str(conveps) + " - i: " + 
+                  str(j) +  " - maxiter: " + str(maxiter))
             sys.stdout.flush()
 
         # check if converged
         if 1 - criterion < conveps:
             y_ = np.dot(np.conj(w_new.T), z)
             g_ = np.log(1 + np.abs(y_)**2)
-            print '\nObjective values are: ' + str(np.mean(g_, axis=-1))
-            print 'Convergence value: ' + str(1 - criterion)
+            print('\nObjective values are: ' + str(np.mean(g_, axis=-1)))
+            print('Convergence value: ' + str(1 - criterion))
             break
 
         # store old value
@@ -78,7 +78,7 @@ def _fastica(data, n_components, maxiter, conveps, random_state):
     if j+1 == maxiter:
         raise Exception('ICA did not converge.')
 
-    print 'ICA finished with ' + str(j+1) + ' iterations'
+    print('ICA finished with ' + str(j+1) + ' iterations')
 
     return w_new, np.dot(np.conj(w_new).T, z)
 
@@ -150,10 +150,10 @@ def complex_ica(data, n_components, conveps=1e-7, maxiter=2000, zerotolerance=1e
     mean = data.mean(axis=-1)
     data -= mean[:, np.newaxis]
 
-    print "Whiten data"
+    print("Whiten data")
     n_components, whitening, dewhitening, whitened = _whiten(data, zerotolerance, n_components)
     
-    print "Do ICA"
+    print("Do ICA")
     mixing_, ic_ = _fastica(whitened, n_components, maxiter, conveps, random_state)
 
     # sort according to objective value
