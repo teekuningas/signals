@@ -138,8 +138,8 @@ def plot_annot_points(save_path, name, points, annots, weights):
     y = []
     labels = []
     for idx in range(len(bins)-1):
-        mask = np.where((points >= bins[idx]) & (points < bins[idx+1]))
-        if np.any(mask):
+        mask = np.where((points >= bins[idx]) & (points <= bins[idx+1]))
+        if np.size(mask) > 0:
             labels.append([name for name in np.array(annots)[mask]])
             y.append(bins[idx])
 
@@ -259,15 +259,16 @@ if __name__ == '__main__':
     pca_comps = pca.fit_transform(data) 
     mixing = np.linalg.pinv(pca.components_)
 
-    for idx in range(mixing.shape[1]):
-        if np.mean(mixing[:, idx]) < 0:
-            mixing[:, idx] = -mixing[:, idx]    
-            pca_comps[idx] = -pca_comps[idx]
+    baseline = pca.transform(np.zeros((1, mixing.shape[0])))
+    pca_comps = pca_comps - baseline
+
+    # for idx in range(mixing.shape[1]):
+    #     if np.mean(mixing[:, idx]) < 0:
+    #         mixing[:, idx] = -mixing[:, idx]    
+    #         pca_comps[idx] = -pca_comps[idx]
 
     for comp_idx in range(pca_comps.shape[1]):
         comp = pca_comps[:, comp_idx]
-        # comp[comp > 0] = np.sqrt(comp[comp>0])
-        # comp[comp < 0] = -np.sqrt(-comp[comp<0])
         plot_annot_points(save_path, 'comp_distr_' + str(comp_idx+1), 
                           comp, names, weights=None)
 

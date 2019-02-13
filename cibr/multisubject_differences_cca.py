@@ -1,4 +1,4 @@
-PLOT_TO_PICS=True
+PLOT_TO_PICS=False
 
 if PLOT_TO_PICS:
     import matplotlib
@@ -30,7 +30,36 @@ from sklearn.decomposition import PCA
 from scipy.signal import hilbert
 from scipy.signal import decimate
 
-from signals.cibr.common import preprocess
+from scipy import stats
+
+
+def plot_barcharts(save_path, components, savename, names):
+    # create necessary savepath
+    if save_path and not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    y_pos = np.arange(len(names))
+    for idx, component in enumerate(components):
+        print("Plotting barchart")
+
+        fig_, ax = plt.subplots()
+
+        ax.bar(y_pos, component, align='center', alpha=0.5)
+        ax.set_xticks(y_pos)
+        ax.set_xticklabels(names)
+        ax.set_ylabel('PCA weights')
+
+        if not save_path:
+            plt.show()
+
+        if save_path:
+            weight_path = os.path.join(save_path, 'weights')
+            if not os.path.exists(weight_path):
+                os.makedirs(weight_path)
+            name = savename + '_' + str(idx+1).zfill(2) + '.png'
+
+            path = os.path.join(weight_path, name)
+            fig_.savefig(path, dpi=620)
 
 
 if __name__ == '__main__':
@@ -68,59 +97,72 @@ if __name__ == '__main__':
 
     background_data = subject_info.iloc[:, 1:7].values.astype(np.float)
 
-    # mask = np.array([elem for elem in subject_info['MedExp'] == '1'])
-    # pca_coefs = pca_coefs[:, mask]
-    # background_data = background_data[mask, :]
-
-    pca = PCA(n_components=2)
+    pca = PCA(n_components=1)
     tf_background = pca.fit_transform(background_data)
     mixing = np.linalg.pinv(pca.components_)
 
+    print("Scores:")
+    print(', '.join([str(val) for val in pca.explained_variance_ratio_]))
+
+    if save_path and not os.path.exists(save_path):
+        os.makedirs(save_path) 
+
     import statsmodels.api as sm
-    for comp in pca_coefs:
+    for comp_idx, comp in enumerate(pca_coefs):
         Y = comp.copy()
         X = tf_background.copy()
         X = sm.add_constant(X)
         model = sm.OLS(Y, X)
         results = model.fit()
         print (results.summary())
+        if save_path:
+            log_path = os.path.join(save_path, 'logs')
+            if not os.path.exists(log_path):
+                os.makedirs(log_path)
+            log_fname = 'regr_comp_' + str(comp_idx+1) + '.txt'
+            with open(os.path.join(log_path, log_fname), 'w') as f:
+                f.write(str(results.summary()))
+        
+        if save_path:
+            scatter_path = os.path.join(save_path, 'scatters')
+            if not os.path.exists(scatter_path):
+                os.makedirs(scatter_path)
+        for bg_idx in range(tf_background.shape[1]):
+            X = tf_background[:, bg_idx]
+            Y = comp
+            title = ('BG comp ' + str(bg_idx+1) + ' x brain comp ' + 
+                     str(comp_idx+1))
+            fig, ax = plt.subplots()
+            fig.suptitle(title)
+            ax.scatter(X, Y)
+            ax.set_ylabel('Brain comp ' + str(comp_idx+1))
+            ax.set_xlabel('BG comp ' + str(bg_idx+1))
+            savename = ('bg_comp_' + str(bg_idx+1) + '_brain_comp_' + 
+                        str(comp_idx+1))
+            if save_path:
+                fig.savefig(os.path.join(scatter_path, savename + '.png'))
+            else:
+                plt.show()
+
+            import pdb; pdb.set_trace()
+            print("miau")
 
     from scipy import stats
-    for idx, comp in enumerate(pca_coefs):
-        print('Comp ' + str(idx+1) + ': ')
-        print(stats.ttest_1samp(comp, 0))
+    for comp_idx, comp in enumerate(pca_coefs):
+        message = ("Comp " + str(comp_idx+1) + ":\n" + 
+                   str(stats.ttest_1samp(comp, 0)) + "\n")
+        print(message)
+        if save_path:
+            log_path = os.path.join(save_path, 'logs')
+            if not os.path.exists(log_path):
+                os.makedirs(log_path)
+            log_fname = 'ttest_comp_' + str(comp_idx+1) + '.txt'
+            with open(os.path.join(log_path, log_fname), 'w') as f:
+                f.write(message)
 
-    raise Exception('Mijau, here starts the scatter plots')
+    # mixing
+    names = subject_info.iloc[:, 1:7].columns.values
+    plot_barcharts(save_path, mixing.T, 'bg', names)
 
-    if save_path:
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
-        for header_name in ['BDI', 'BAI', 'BIS', 'BasDrive', 'BasRR', 'BasFS', 'MedLength', 'MedFreq', 'MedExp']:
-            for comp_idx, comp in enumerate(pca_coefs):
-                info = [float(value.replace(',', '.')) for value in subject_info[header_name].values]
-                fig, ax = plt.subplots()
-                fig.suptitle(header_name + ' x ' + 'comp ' + str(comp_idx+1))
-                ax.scatter(comp, info)
-                ax.set_ylabel(header_name)
-                ax.set_xlabel('Value on principal component axis')
-                fig.savefig(os.path.join(save_path, header_name.lower() + '_comp_' + str(comp_idx+1) + '.png'))
-        # Med strategy
-        header_name = 'MedStrategy2'
-        for comp_idx, comp in enumerate(pca_coefs):
-            info = [value for value in subject_info[header_name].values]
-            info = [1 if value == 'openmonitoring' else value for value in info]
-            info = [0 if value == 'focusedattention' else value for value in info]
-            idxs = [idx for idx, val in enumerate(info) if val != '-']
-            comp = np.array(comp)[idxs]
-            info = [val for idx, val in enumerate(info) if val in idxs]
-
-            fig, ax = plt.subplots()
-            fig.suptitle(header_name + ' x ' + 'comp ' + str(comp_idx+1))
-            ax.scatter(comp, info)
-            ax.set_ylabel('Open monitoring (1) vs focused attention (0)')
-            ax.set_xlabel('Value on principal component axis')
-
-            fig.savefig(os.path.join(save_path, header_name.lower() + '_comp_' + str(comp_idx+1) + '.png'))
-
-    raise Exception('Miau')
+    print("Hooray, finished")
 

@@ -358,6 +358,7 @@ def get_amount_of_components(data, explained_var):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--contrast')
     parser.add_argument('--raw')
     parser.add_argument('--empty', nargs='+')
     parser.add_argument('--save-path')
@@ -371,10 +372,10 @@ if __name__ == '__main__':
 
     src_method = 'vol'
     mne_method, mne_depth = 'dSPM', None
-    band = (6, 14)
-    sampling_rate_raw = 50.0
-    tasks = ['mind', 'plan']
-    
+    band = (16, 28)
+    sampling_rate_raw = 100.0
+    tasks = ['mind', cli_args.contrast]
+
     surf_spacing = 'ico3'
     vol_spacing = '10'
     page = 4
@@ -491,122 +492,74 @@ if __name__ == '__main__':
     ica_unmixing = ica.components_
     ica_mixing = np.linalg.pinv(ica_unmixing)
 
-    # magic_mixing = ica_mixing.copy()
-    # for idx in range(ica_mixing.shape[1]):
-    #     magic_mixing[:, idx] = ica_mixing[:, idx]/np.max(np.abs(ica_mixing[:, idx]))
-
     independent_data = np.dot(ica_unmixing, subject_data['data'])
 
-    X = [] 
-    y = []
-    length = 4
-    for key, ivals in subject_data['intervals'].items():
-        if key not in tasks:
-            continue
-        for ival in ivals:
-            subivals = [(istart, istart + length) for istart in range(int(ival[0]), int(ival[1]), length)]
-            for subival in subivals:
-                start = int(subival[0]*sampling_rate_hilbert)
-                end = int(subival[1]*sampling_rate_hilbert)
-                X.append(np.mean(independent_data[:, start:end], axis=1))
-                if key == tasks[0]:
-                    y.append(0)
-                if key == tasks[1]:
-                    y.append(1)
-
-    parameters = {
-        'alpha': [1e-6, 1e-5, 1e-4, 1e-3],
-        'l1_ratio': [0.6, 0.7, 0.8, 0.9, 1.0],
-    }
-    alg = sklearn.linear_model.SGDClassifier(
-        loss='log',
-        penalty='elasticnet',
-        max_iter=10000,
-        tol=None,
-        class_weight='balanced',
-    )
-    clf = sklearn.model_selection.GridSearchCV(
-        estimator=alg,
-        param_grid=parameters,
-        cv=5)
-    clf.fit(X, y)
-
-    scores = sklearn.model_selection.cross_val_score(clf.best_estimator_, X, y, cv=5)
-    l1_ratio = clf.best_estimator_.l1_ratio
-    clf_alpha = clf.best_estimator_.alpha
-
-    print("Results: " + str(scores))
-    print("L1 ratio: " + str(l1_ratio))
-    print("Alpha: " + str(clf_alpha))
+    savename = subject_data['name'] + '_' + tasks[0] + '_' + tasks[1]
 
     if save_path and not os.path.exists(save_path):
         os.makedirs(save_path)
 
-    savename = subject_data['name'] + '_' + tasks[0] + '_' + tasks[1]
+    ###
 
-    # # magix try
-    # positive_coefs = np.copy(clf.best_estimator_.coef_[0])
-    # positive_coefs[positive_coefs < 0] = 0
-    # negative_coefs = np.copy(clf.best_estimator_.coef_[0])
-    # negative_coefs[negative_coefs > 0] = 0
-    # negative_coefs = -negative_coefs
+    def classify_plot_and_save(blocktype, interval_dict):
 
-    # positive_brainmap = np.dot(magic_mixing, positive_coefs)
-    # negative_brainmap = np.dot(magic_mixing, negative_coefs)
-    # difference_brainmap = positive_brainmap - negative_brainmap
-    # increase_map = difference_brainmap.copy()  
-    # increase_map[increase_map < 0] = 0
-    # decrease_map = difference_brainmap.copy()
-    # decrease_map[decrease_map > 0] = 0
-    # decrease_map = -decrease_map
-    # plot_vol_stc_brainmap(save_path, savename + '_increase_map', increase_map, 'Reds', vertices, vol_spacing, subjects_dir) 
-    # plot_vol_stc_brainmap(save_path, savename + '_decrease_map', decrease_map, 'Blues', vertices, vol_spacing, subjects_dir) 
+        # X = [] 
+        # y = []
+        # length = 4
+        # for key, ivals in interval_dict.items():
+        #     if key not in tasks:
+        #         continue
+        #     for ival in ivals:
+        #         subivals = [(istart, istart + length) for istart in range(int(ival[0]), int(ival[1]), length)]
+        #         for subival in subivals:
+        #             start = int(subival[0]*sampling_rate_hilbert)
+        #             end = int(subival[1]*sampling_rate_hilbert)
+        #             X.append(np.mean(independent_data[:, start:end], axis=1))
+        #             if key == tasks[0]:
+        #                 y.append(0)
+        #             if key == tasks[1]:
+        #                 y.append(1)
 
-    # plot_vol_stc_brainmap_multiple(save_path, savename + '_combined_map', increase_map, decrease_map, vertices, vol_spacing, subjects_dir) 
+        # parameters = {
+        #     'alpha': [1e-6, 1e-5, 1e-4, 1e-3],
+        #     'l1_ratio': [0.6, 0.7, 0.8, 0.9, 1.0],
+        # }
+        # alg = sklearn.linear_model.SGDClassifier(
+        #     loss='log',
+        #     penalty='elasticnet',
+        #     max_iter=10000,
+        #     tol=None,
+        #     class_weight='balanced',
+        # )
+        # clf = sklearn.model_selection.GridSearchCV(
+        #     estimator=alg,
+        #     param_grid=parameters,
+        #     cv=4)
+        # clf.fit(X, y)
 
-    # if save_path:
-    #     data_path = os.path.join(save_path, 'data')
-    #     if not os.path.exists(data_path):
-    #         os.makedirs(data_path)
+        # scores = sklearn.model_selection.cross_val_score(clf.best_estimator_, X, y, cv=4)
+        # l1_ratio = clf.best_estimator_.l1_ratio
+        # clf_alpha = clf.best_estimator_.alpha
 
-    #     path = os.path.join(data_path, savename + '.csv')
+        # print("Stats for :" + str(blocktype))
+        # print("Results: " + str(scores))
+        # print("L1 ratio: " + str(l1_ratio))
+        # print("Alpha: " + str(clf_alpha))
 
-    #     with open(path, 'w') as f:
-    #         f.write(', '.join([str(elem) for elem in vertices.tolist()]) + '\n')
-    #         f.write(', '.join([str(elem) for elem in difference_brainmap.tolist()]))
+        # if save_path:
+        #     info_path = os.path.join(save_path, 'subject_info')
+        #     if not os.path.exists(info_path):
+        #         os.makedirs(info_path)
 
-    if save_path:
-        info_path = os.path.join(save_path, 'subject_info')
-        if not os.path.exists(info_path):
-            os.makedirs(info_path)
+        #     path = os.path.join(info_path,
+        #         savename + '_' + blocktype + '.csv')
 
-        path = os.path.join(info_path,
-            savename + '.csv')
-
-        with open(path, 'w') as f:
-            f.write(', '.join([
-                savename,
-                str(np.mean(scores)),
-                str(l1_ratio),
-                str(clf_alpha)]))
-
-    # X_ = np.array(X)
-    # y_ = np.array(y)
-    # brainmap_task0 = np.dot(ica_mixing, np.mean(X_[y_==0], axis=0))
-    # brainmap_task1 = np.dot(ica_mixing, np.mean(X_[y_==1], axis=0))
-    # difference = brainmap_task1 - brainmap_task0
-    # increase_map = difference.copy()
-    # increase_map[increase_map<0] = 0
-    # decrease_map = difference.copy()
-    # decrease_map[decrease_map>0] = 0
-    # decrease_map = -decrease_map
-
-    # plot_vol_stc_brainmap(save_path, savename + '_increase_map_noclassif', increase_map, 'Reds', vertices, vol_spacing, subjects_dir) 
-    # plot_vol_stc_brainmap(save_path, savename + '_decrease_map_noclassif', decrease_map, 'Blues', vertices, vol_spacing, subjects_dir) 
-
-    # plot_vol_stc_brainmap_multiple(save_path, savename + '_combined_map_noclassif', increase_map, decrease_map, vertices, vol_spacing, subjects_dir) 
-
-    def plot_and_save(blocktype, interval_dict):
+        #     with open(path, 'w') as f:
+        #         f.write(', '.join([
+        #             savename,
+        #             str(np.mean(scores)),
+        #             str(l1_ratio),
+        #             str(clf_alpha)]))
 
         X = [] 
         y = []
@@ -671,8 +624,90 @@ if __name__ == '__main__':
     block2_intervals[tasks[0]] = block2_task0
     block2_intervals[tasks[1]] = block2_task1
 
-    plot_and_save('both', intervals)
-    plot_and_save('block1', block1_intervals)
-    plot_and_save('block2', block2_intervals)
+    # get accuracy by training with session 1 
+    # and testing with session 2
+    block1_X = [] 
+    block1_y = []
+    length = 4
+    for key, ivals in block1_intervals.items():
+        if key not in tasks:
+            continue
+        for ival in ivals:
+            subivals = [(istart, istart + length) for istart in range(int(ival[0]), int(ival[1]), length)]
+            for subival in subivals:
+                start = int(subival[0]*sampling_rate_hilbert)
+                end = int(subival[1]*sampling_rate_hilbert)
+                block1_X.append(np.mean(independent_data[:, start:end], axis=1))
+                if key == tasks[0]:
+                    block1_y.append(0)
+                if key == tasks[1]:
+                    block1_y.append(1)
+    block2_X = [] 
+    block2_y = []
+    length = 4
+    for key, ivals in block2_intervals.items():
+        if key not in tasks:
+            continue
+        for ival in ivals:
+            subivals = [(istart, istart + length) for istart in range(int(ival[0]), int(ival[1]), length)]
+            for subival in subivals:
+                start = int(subival[0]*sampling_rate_hilbert)
+                end = int(subival[1]*sampling_rate_hilbert)
+                block2_X.append(np.mean(independent_data[:, start:end], axis=1))
+                if key == tasks[0]:
+                    block2_y.append(0)
+                if key == tasks[1]:
+                    block2_y.append(1)
+
+    parameters = {
+        'alpha': [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2],
+        'l1_ratio': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+    }
+    alg = sklearn.linear_model.SGDClassifier(
+        loss='log',
+        penalty='elasticnet',
+        max_iter=10000,
+        tol=None,
+        class_weight='balanced',
+    )
+    clf = sklearn.model_selection.GridSearchCV(
+        estimator=alg,
+        param_grid=parameters,
+        cv=4)
+
+    clf.fit(block1_X, block1_y)
+
+    scores = sklearn.model_selection.cross_val_score(clf.best_estimator_, block1_X, block1_y, cv=4)
+    train_score = np.mean(scores)
+    l1_ratio = clf.best_estimator_.l1_ratio
+    clf_alpha = clf.best_estimator_.alpha
+    test_score = clf.best_estimator_.score(block2_X, block2_y)
+
+    print("Main classification:")
+    print("Results: " + str(scores))
+    print("Train CV score: " + str(train_score))
+    print("L1 ratio: " + str(l1_ratio))
+    print("Alpha: " + str(clf_alpha))
+    print("Validation score: " + str(test_score))
+
+    if save_path:
+        info_path = os.path.join(save_path, 'subject_info')
+        if not os.path.exists(info_path):
+            os.makedirs(info_path)
+
+        path = os.path.join(info_path,
+            savename + '.csv')
+
+        with open(path, 'w') as f:
+            f.write(', '.join([
+                savename,
+                str(train_score),
+                str(test_score),
+                str(l1_ratio),
+                str(clf_alpha)]))
+
+    classify_plot_and_save('both', intervals)
+    classify_plot_and_save('block1', block1_intervals)
+    classify_plot_and_save('block2', block2_intervals)
     
 
