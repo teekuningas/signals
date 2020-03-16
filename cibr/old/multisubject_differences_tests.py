@@ -1,12 +1,14 @@
-PLOT_TO_PICS=False
+PLOT_TO_PICS=True
 
 if PLOT_TO_PICS:
     import matplotlib
-    matplotlib.rc('font', size=10)
+    matplotlib.rc('font', size=12)
     matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt 
 plt.rcParams.update({'figure.max_open_warning': 0})
+
+# plt.style.use('seaborn-whitegrid')
 
 import pyface.qt
 
@@ -127,38 +129,42 @@ if __name__ == '__main__':
             scatter_path = os.path.join(save_path, 'scatters')
             if not os.path.exists(scatter_path):
                 os.makedirs(scatter_path)
+
         for bg_idx in range(tf_background.shape[1]):
             X = tf_background[:, bg_idx]
             Y = comp
-            title = ('BG comp ' + str(bg_idx+1) + ' x brain comp ' + 
-                     str(comp_idx+1))
             fig, ax = plt.subplots()
+            title = ''
+            # if results.f_pvalue < 0.05:
+            #     title = 'p = ' + str(round(results.f_pvalue, 3))
             fig.suptitle(title)
             ax.scatter(X, Y)
-            ax.set_ylabel('Brain comp ' + str(comp_idx+1))
-            ax.set_xlabel('BG comp ' + str(bg_idx+1))
+            ax.set_ylabel('Brain PCA component')
+            ax.set_xlabel('Psychometric PCA component')
+
+            line_x = np.linspace(np.min(X), np.max(X), len(X))
+            ax.plot(line_x, line_x*results.params[1] + results.params[0]) 
+
             savename = ('bg_comp_' + str(bg_idx+1) + '_brain_comp_' + 
                         str(comp_idx+1))
             if save_path:
-                fig.savefig(os.path.join(scatter_path, savename + '.png'))
+                fig.savefig(os.path.join(scatter_path, savename + '.png'), 
+                            dpi=620)
             else:
                 plt.show()
 
-            import pdb; pdb.set_trace()
-            print("miau")
-
-    from scipy import stats
-    for comp_idx, comp in enumerate(pca_coefs):
-        message = ("Comp " + str(comp_idx+1) + ":\n" + 
-                   str(stats.ttest_1samp(comp, 0)) + "\n")
-        print(message)
-        if save_path:
-            log_path = os.path.join(save_path, 'logs')
-            if not os.path.exists(log_path):
-                os.makedirs(log_path)
-            log_fname = 'ttest_comp_' + str(comp_idx+1) + '.txt'
-            with open(os.path.join(log_path, log_fname), 'w') as f:
-                f.write(message)
+    # from scipy import stats
+    # for comp_idx, comp in enumerate(pca_coefs):
+    #     message = ("Comp " + str(comp_idx+1) + ":\n" + 
+    #                str(stats.ttest_1samp(comp, 0)) + "\n")
+    #     print(message)
+    #     if save_path:
+    #         log_path = os.path.join(save_path, 'logs')
+    #         if not os.path.exists(log_path):
+    #             os.makedirs(log_path)
+    #         log_fname = 'ttest_comp_' + str(comp_idx+1) + '.txt'
+    #         with open(os.path.join(log_path, log_fname), 'w') as f:
+    #             f.write(message)
 
     # mixing
     names = subject_info.iloc[:, 1:7].columns.values

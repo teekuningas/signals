@@ -16,8 +16,6 @@ import matplotlib.pyplot as plt
 
 from signals.cibr.ica.complex_ica import complex_ica
 
-from signals.cibr.common import load_raw
-from signals.cibr.common import preprocess
 from signals.cibr.common import get_correlations
 from signals.cibr.common import calculate_stft
 from signals.cibr.common import arrange_as_matrix
@@ -30,6 +28,10 @@ from signals.cibr.common import get_subject_spectra
 from signals.cibr.common import get_mean_spectra
 from signals.cibr.common import get_rest_intervals
 from signals.cibr.common import get_peak_by_correlation
+
+
+
+
 
 
 def save_spectrum_data(save_path, data, freqs, 
@@ -113,6 +115,20 @@ def save_peak_values(save_path, data, freqs,
             writer.writerow(line)
 
 
+def get_hiit_ec_intervals(splits_in_samples, sfreq):
+    ivals = []
+    for idx in range(len(splits_in_samples) - 1):
+        subject_start = splits_in_samples[idx]
+        subject_end = splits_in_samples[idx+1]
+        ival_start = int(subject_start + 10*sfreq)
+        ival_end = int((2/3.0)*(subject_end - subject_start) - 10*sfreq)
+        print("Selecting interval " + str(ival_start) + ' - ' + str(ival_end) + 
+              " for subject " + str(idx+1))
+        ivals.append((ival_start, ival_end))
+    return ivals
+
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -129,10 +145,17 @@ if __name__ == '__main__':
 
         print path
 
-        raw = load_raw(path)
-        raw, events = preprocess(raw, filter_=False)
+        # load raw
+        raw = mne.io.Raw(path, preload=True)
 
-        raw._data = (raw._data - np.mean(raw._data)) / np.std(raw._data)
+        # keep only grads
+        picks = mne.pick_types(raw.info, meg='grad')
+        raw.drop_channels([ch for idx, ch in enumerate(raw.info['ch_names'])
+                           if idx not in picks])
+
+        raw.resample(100)
+
+        # raw._data = (raw._data - np.mean(raw._data)) / np.std(raw._data)
 
         raws.append(raw)
 
@@ -154,26 +177,9 @@ if __name__ == '__main__':
         sfreq * window_in_seconds)/np.log(2)))
     overlap_in_samples = (window_in_samples * 3) / 4
 
-    eo_ivals, ec_ivals, total_ivals = get_rest_intervals(splits_in_samples, sfreq)
+    intervals = get_hiit_ec_intervals(splits_in_samples, sfreq)
 
-    print "EO ivals:"
-    print eo_ivals
-    print "EC ivals:"
-    print ec_ivals
-    print "Total ivals:"
-    print total_ivals
-
-    # raws = []
-    # index_count = 0
-    # total_ivals = []
-    # for ival in ec_ivals:
-    #     total_ival = (index_count, index_count + ival[1] - ival[0])
-    #     index_count += ival[1] - ival[0]
-    #     total_ivals.append(total_ival)
-    #     raws.append(mne.io.RawArray(raw._data[:, ival[0]:ival[1]], raw.info))
-
-    # raw = mne.concatenate_raws(raws)
-    # print total_ivals
+    import pdb; pdb.set_trace()
 
     freqs, times, orig_data, _ = calculate_stft(raw._data, sfreq, window_in_samples,
         overlap_in_samples, hpass, lpass, row_wise=True)

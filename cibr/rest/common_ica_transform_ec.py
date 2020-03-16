@@ -1,11 +1,20 @@
+import matplotlib
+matplotlib.rc('font', size=6)
+matplotlib.use('Agg')
+
+import sys
 import os
+import csv
+
+import argparse
+
 import mne
 import numpy as np
-
-import scipy.signal
-from scipy import stats
+import scipy
 
 import matplotlib.pyplot as plt
+
+from ica.complex_ica import complex_ica
 
 
 def get_power_law(x, y):
@@ -26,44 +35,6 @@ def get_power_law(x, y):
 
     return y_fitted
 
-
-def get_peak(freqs, spectrum, band=(6, 14)):
-    nearby_freqs = np.where((freqs > band[0]) & (freqs < band[1]))[0]
-    argmax_ = (nearby_freqs[0] + 
-               np.argmax(scipy.signal.detrend(spectrum[nearby_freqs])))
-    return freqs[argmax_], spectrum[argmax_]
-
-
-def get_power(freqs, spectrum, band=(6,14)):
-    band = np.where((freqs > band[0]) & (freqs < band[1]))[0]
-    power = np.trapz(spectrum[band], freqs[band])
-    return power
-
-
-def load_raw(fnames):
-    print("Loading data")
-    if type(fnames) is not list:
-        fnames = [fnames]
-    raws = []
-    for fname in fnames:
-        raws.append(mne.io.Raw(fname, preload=True))
-
-    raw = mne.concatenate_raws(raws)
-    return raw
-
-
-def preprocess(raw, filter_=(2, 35), min_duration=2):
-    print("Preprocessing.")
-
-    events = mne.find_events(raw, shortest_event=1, min_duration=min_duration/raw.info['sfreq'], uint_cast=True)
-    picks = mne.pick_types(raw.info, meg='grad')
-    raw.drop_channels([ch for idx, ch in enumerate(raw.info['ch_names']) 
-                       if idx not in picks])
-
-    if filter_:
-        raw.filter(l_freq=filter_[0], h_freq=filter_[1], verbose='error')
-
-    return raw, events
 
 
 def calculate_stft(data, sfreq, window, noverlap, hpass, lpass, row_wise=False):
@@ -91,16 +62,6 @@ def calculate_stft(data, sfreq, window, noverlap, hpass, lpass, row_wise=False):
     stft = stft[:, hpass_ind:lpass_ind, :]
 
     return freqs, times, stft, istft_freq_pads
-
-def calculate_istft(data, sfreq, window, noverlap, freq_pads):
-
-    data_padded = np.pad(data, [(0,0), freq_pads, (0,0)], 
-                          mode='constant')
-
-    timeseries = scipy.signal.istft(data_padded, fs=sfreq, 
-        nperseg=window, noverlap=noverlap)[1]
-
-    return timeseries
 
 def arrange_as_matrix(tensor):
     print("Arranging as matrix")
@@ -133,28 +94,6 @@ def get_mean_spectra(data, freqs):
         mean_spectra.append(psd)
 
     return np.array(mean_spectra)
-
-
-def get_rest_intervals(splits_in_samples, sfreq):
-    eyes_open = []
-    eyes_closed = []
-    total = []
-
-    for idx in range(len(splits_in_samples) - 1):
-        subject_start = splits_in_samples[idx]
-        subject_end = splits_in_samples[idx+1]
-        eo_ival = (subject_start + 15*sfreq, 
-                   (subject_end + subject_start) / 2 - 15*sfreq)
-        ec_ival = ((subject_end + subject_start) / 2 + 15*sfreq,
-                   subject_end - 15*sfreq)
-        total_ival = (subject_start + 15*sfreq, 
-                      subject_end - 15*sfreq)
-
-        eyes_open.append(eo_ival)
-        eyes_closed.append(ec_ival)
-        total.append(total_ival)
-
-    return eyes_open, eyes_closed, total
 
 
 def get_subject_spectra(data, freqs, intervals, raw_times, normalized=True, subtract_power_law=True):
@@ -190,7 +129,7 @@ def get_subject_spectra(data, freqs, intervals, raw_times, normalized=True, subt
     return subject_spectra
 
 
-def roll_subject_to_average(subject_psd, average_psd):
+def _roll_subject_to_average(subject_psd, average_psd):
     x, y = subject_psd, average_psd
     corr = np.correlate(x, y, mode='full')
     max_corr = np.argmax(corr)
@@ -227,7 +166,7 @@ def get_correlations(data, freqs, intervals, raw_times):
             ts1 = mean_spectra[i]
             ts2 = subject_spectra[i, j]
 
-            ts2 = roll_subject_to_average(ts2, ts1)
+            ts2 = _roll_subject_to_average(ts2, ts1)
  
             r, _ = scipy.stats.pearsonr(ts1, ts2) 
             correlations_i.append(r)
@@ -308,7 +247,7 @@ def plot_subject_spectra(save_path, data, freqs, page, intervals, raw_times, com
         ax = fig_.add_subplot(page, (len(component_idxs) - 1) / page + 1, i+1)
 
         for psd in subject_spectra[idx]:
-            spectrum = roll_subject_to_average(psd, mean_spectra[idx])
+            spectrum = _roll_subject_to_average(psd, mean_spectra[idx])
             ax.plot(freqs, spectrum)
             ax.set_xlabel = 'Frequency (Hz)'
             ax.set_ylabel = 'Power (dB)'
@@ -343,4 +282,210 @@ def plot_subject_spectra_separate(save_path, data, freqs, page, intervals, raw_t
         if save_path:
             sub_path = os.path.join(save_path, names[sub_idx] + '.png')
             fig_.savefig(sub_path, dpi=310)
+
+
+
+
+
+def save_spectrum_data(save_path, data, freqs, 
+                     raw_times, component_idxs, correlations, names,
+                     total_ivals):
+
+    if save_path and not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    subject_spectra = get_subject_spectra(data, freqs, 
+        total_ivals, raw_times, normalized=False, 
+        subtract_power_law=False)
+
+    # prepare header
+    header = ['Subject']
+    header += list(freqs)
+        
+    data_array = []
+    for idx, comp_idx in enumerate(component_idxs):
+        for sub_idx in range(subject_spectra.shape[1]):
+            row = [names[sub_idx] + ' (' + str(idx+1) + ')']
+            
+            for val in subject_spectra[comp_idx, sub_idx]:
+                row.append(val)
+
+            data_array.append(row)
+
+    with open(os.path.join(save_path, 'spectrum_data.csv'),'wb') as f:
+        writer = csv.writer(f, delimiter=',')
+        writer.writerow(header)
+        for line in data_array:
+            writer.writerow(line)
+
+
+def save_peak_values(save_path, data, freqs, 
+                     raw_times, component_idxs, correlations, names,
+                     total_ivals):
+
+    if save_path and not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    # extract mean spectra
+    mean_spectra = get_mean_spectra(data, freqs)
+
+    # extract spectra for different subjects
+    subject_spectra_normalized = get_subject_spectra(data, freqs, 
+        total_ivals, raw_times, normalized=True)
+
+    total_subject_spectra_ws = get_subject_spectra(data, freqs, 
+        total_ivals, raw_times, normalized=False, 
+        subtract_power_law=False)
+
+    # prepare header
+    header = ['Subject']
+    for i in range(len(component_idxs)):
+        header.append('Frequency (' + str(i+1) + ')')
+        header.append('Total amplitude (' + str(i+1) + ')')
+        header.append('Variance (' + str(i+1) + ')')
+        header.append('Score (' + str(i+1) + ')')
+        
+    data_array = []
+    for sub_idx in range(subject_spectra_normalized.shape[1]):
+        row = [names[sub_idx]]
+        for comp_idx in component_idxs:
+            psd_normalized = subject_spectra_normalized[comp_idx, sub_idx]
+            peak_idx = get_peak_by_correlation(psd_normalized, mean_spectra[comp_idx])
+
+            freq = freqs[peak_idx]
+            total_peak_ws = total_subject_spectra_ws[comp_idx, sub_idx][peak_idx]  # noqa
+
+            row.append(freq)
+            row.append(total_peak_ws)
+            row.append(correlations[comp_idx, sub_idx])
+
+        data_array.append(row)
+
+    with open(os.path.join(save_path, 'data.csv'),'wb') as f:
+        writer = csv.writer(f, delimiter=',')
+        writer.writerow(header)
+        for line in data_array:
+            writer.writerow(line)
+
+
+def get_hiit_ec_intervals(splits_in_samples, sfreq):
+    ivals = []
+    for idx in range(len(splits_in_samples) - 1):
+        subject_start = splits_in_samples[idx]
+        subject_end = splits_in_samples[idx+1]
+        ival_start = int(subject_start + 10*sfreq)
+        ival_end = int((2/3.0)*(subject_end - subject_start) - 10*sfreq)
+        print("Selecting interval " + str(ival_start) + ' - ' + str(ival_end) + 
+              " for subject " + str(idx+1))
+        ivals.append((ival_start, ival_end))
+    return ivals
+
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--save_path')
+    parser.add_argument('--raws', nargs='+')
+    cli_args = parser.parse_args()
+
+    print "Processing files: "
+
+    raws = []
+    names = []
+    splits_in_samples = [0]
+    for path_idx, path in enumerate(cli_args.raws):
+
+        print path
+
+        # load raw
+        raw = mne.io.Raw(path, preload=True)
+
+        # keep only grads
+        picks = mne.pick_types(raw.info, meg='grad')
+        raw.drop_channels([ch for idx, ch in enumerate(raw.info['ch_names'])
+                           if idx not in picks])
+
+        raw.resample(100)
+
+        # raw._data = (raw._data - np.mean(raw._data)) / np.std(raw._data)
+
+        raws.append(raw)
+
+        names.append(raw.filenames[0].split('/')[-1].split('.fif')[0])
+
+        splits_in_samples.append(splits_in_samples[-1] + len(raw))
+
+    raw = mne.concatenate_raws(raws)
+
+    sfreq = raw.info['sfreq']
+    page = 10
+    window_in_seconds = 2
+    n_components = 20
+    conveps = 1e-7
+    maxiter = 15000
+    hpass = 4
+    lpass = 16
+    window_in_samples = np.power(2, np.ceil(np.log(
+        sfreq * window_in_seconds)/np.log(2)))
+    overlap_in_samples = (window_in_samples * 3) / 4
+
+    intervals = get_hiit_ec_intervals(splits_in_samples, sfreq)
+
+    import pdb; pdb.set_trace()
+
+    freqs, times, orig_data, _ = calculate_stft(raw._data, sfreq, window_in_samples,
+        overlap_in_samples, hpass, lpass, row_wise=True)
+
+    shape, orig_data = orig_data.shape, arrange_as_matrix(orig_data)
+
+    data, mixing, dewhitening, _, _, mean = complex_ica(
+        orig_data, n_components, conveps=conveps, maxiter=maxiter)
+
+    back_proj = np.dot(np.dot(dewhitening, mixing), data) + mean[:, np.newaxis]
+    var_explained = (100 - 100*np.mean(np.var(orig_data - back_proj))/
+                     np.mean(np.var(orig_data)))
+    del back_proj
+    del orig_data
+    print "Variance explained by components: " + str(var_explained)
+
+    data = arrange_as_tensor(data, shape)
+
+    print "Calculating correlations."
+    correlations = get_correlations(data, freqs, total_ivals, raw.times)
+    corr_scores = np.sum(correlations, axis=1)
+
+    # sort in reverse order
+    corr_idxs = np.argsort(-corr_scores)
+
+    print "Corr scores sorted: "
+    for idx in corr_idxs:
+        print 'Component ' + str(idx+1) + ': ' + str(corr_scores[idx])
+
+    print "Plotting brainmaps."
+    plot_topomaps(cli_args.save_path, dewhitening, mixing, mean, raw.info,
+                   page, corr_idxs)
+
+    print "Plotting mean spectra."
+    plot_mean_spectra(cli_args.save_path, data, freqs, page, corr_idxs)
+
+    print "Plotting subject spectra."
+    plot_subject_spectra(cli_args.save_path, data, freqs, page, 
+                         total_ivals, raw.times, corr_idxs)
+
+    print "Plotting subject spectra to separate images"
+    plot_subject_spectra_separate(cli_args.save_path, data, freqs, page, 
+                                  total_ivals, raw.times, corr_idxs,
+                                  names)
+
+    print "Saving to data values."
+    # save all the values in same order as the plot
+    save_peak_values(cli_args.save_path, data, freqs,
+                     raw.times, corr_idxs, correlations, names,
+                     total_ivals)
+
+    print "Saving spectrum data"
+    save_spectrum_data(cli_args.save_path, data, freqs, 
+                       raw.times, corr_idxs, correlations, names, total_ivals)
+
 
