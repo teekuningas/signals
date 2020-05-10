@@ -10,7 +10,6 @@ import pyface.qt
 
 import sys
 import gc
-import csv
 import argparse
 import os
 
@@ -23,6 +22,7 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import matplotlib.patches as mpatches
 import seaborn as sns
+
 from statsmodels.stats.anova import AnovaRM
 
 from sklearn.decomposition import PCA
@@ -31,6 +31,8 @@ from hmmlearn.hmm import GaussianHMM
 from scipy.signal import hilbert
 from scipy.signal import decimate
 import scipy.fftpack as fftpack
+
+from signals.cibr.lib.sensor import plot_sensor_topomap
 
 from signals.cibr.lib.stc import create_vol_stc
 from signals.cibr.lib.stc import plot_vol_stc_brainmap
@@ -96,36 +98,6 @@ def prepare_hilbert(data, sfreq, smoothing_window):
     print("Env shape after " + str(env.shape))
 
     return env
-
-
-def plot_sensor_topomap(data, info, ax, factor=1.0):
-    """
-    """
-    data = data.copy()
-
-    from mne.channels.layout import (_merge_grad_data, find_layout,
-                                     _pair_grad_sensors)
-    picks, pos = _pair_grad_sensors(info, find_layout(info))
-    data = _merge_grad_data(data[picks], method='rms').reshape(-1)
-
-    # data[data < np.percentile(data, 75)] = np.min(data)
-    # vmax = np.max(data)
-    # vmin = np.min(data)
-
-    if np.max(data) >= 0:
-        pos_limit = np.percentile(data[data >= 0], 75)
-        data[(data >= 0) & (data < pos_limit)] = 0
-        data[(data >= 0) & (data >= pos_limit)] -= pos_limit
-    if np.min(data) <= 0:
-        neg_limit = np.percentile(data[data <= 0], 25)
-        data[(data <= 0) & (data > neg_limit)] = 0
-        data[(data <= 0) & (data <= neg_limit)] -= neg_limit
-
-    vmax = np.max(np.abs(data)) / factor
-    vmin = -vmax
-    
-    mne.viz.topomap.plot_topomap(data, pos, axes=ax, vmin=vmin, vmax=vmax,
-                                 cmap='RdBu_r')
 
 
 if __name__ == '__main__':

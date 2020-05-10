@@ -13,119 +13,24 @@ import csv
 import argparse
 import os
 
-from collections import OrderedDict
-
 import nibabel as nib
 import mne
 import numpy as np
 import matplotlib.pyplot as plt 
 import sklearn
 
-from nilearn.plotting import plot_glass_brain
-
-from sklearn.decomposition import FastICA
-
 from scipy.signal import hilbert
 from scipy.signal import decimate
 import scipy.fftpack as fftpack
 
-# from icasso import Icasso
+from signals.cibr.lib.stc import create_vol_stc
+from signals.cibr.lib.stc import plot_vol_stc_brainmap
+from signals.cibr.lib.sensor import plot_sensor_topomap
 
-from signals.cibr.common import create_vol_stc
-from signals.cibr.common import plot_vol_stc_brainmap
+from signals.cibr.lib.triggers import extract_intervals_meditaatio
 
-
-def preprocess(raw, band, min_duration=2, verbose=False):
-    if verbose:
-        print("Preprocessing.")
-
-    events = mne.find_events(raw, shortest_event=1, min_duration=min_duration/raw.info['sfreq'], uint_cast=True, verbose='warning')
-    picks = mne.pick_types(raw.info, meg='grad')
-    raw.drop_channels([ch for idx, ch in enumerate(raw.info['ch_names']) 
-                       if idx not in picks])
-
-    raw.filter(l_freq=band[0], h_freq=band[1])
-
-    return raw, events
-
-
-def extract_intervals_fdmsa_ic(events, sfreq, first_samp):
-    """ meditation intervals """
-    intervals = OrderedDict()
-
-    trigger_info = [
-        ('heart', 15),
-        ('note', 16),
-    ]
-
-    # add 16s
-
-    for name, event_id in trigger_info:
-        intervals[name] = []
-
-    counter = 0
-    for idx, event in enumerate(events):
-        for name, bit in trigger_info:
-            if int(format(event[2], '#020b')[-bit]) == 1:
-                print(
-                    str(format(event[2], '#020b')) + ', ' +
-                    str(bit) + ', ' +
-                    str(event))
-                ival_start = event[0] + 1*sfreq
-                ival_end = ival_start + 15*sfreq
-
-                intervals[name].append((
-                    (ival_start - first_samp) / sfreq,
-                    (ival_end - first_samp) / sfreq))
-                counter += 1
-    if counter != 16: 
-        print("Warning!!! " + str(counter) + " events found.")
-
-    return intervals
-
-
-def extract_intervals_meditation(events, sfreq, first_samp, tasks):
-    """ meditation intervals """
-    intervals = OrderedDict()
-
-    trigger_info = [
-        ('mind', 10),
-        ('rest', 11),
-        ('plan', 12),
-        ('anx', 13),
-    ]
-
-    for idx, event in enumerate(events):
-        for name, event_id in trigger_info:
-            if name not in tasks:
-                continue
-            if name not in intervals:
-                intervals[name] = []
-            if event[2] == event_id:
-                ival_start = event[0] + 2*sfreq
-                try:
-                    ival_end = events[idx+1][0] - 2*sfreq
-                except:
-                    # last trigger (rest)
-                    ival_end = event[0] + 120*sfreq - 2*sfreq
-
-                intervals[name].append((
-                    (ival_start - first_samp) / sfreq,
-                    (ival_end - first_samp) / sfreq))
-
-    return intervals
-
-
-def get_amount_of_components(data, explained_var):
-
-    from sklearn.decomposition import PCA
-    pca = PCA(whiten=True, copy=True)
-
-    data = pca.fit_transform(data.T)
-
-    n_components = np.sum(pca.explained_variance_ratio_.cumsum() <=
-                           explained_var)
-    return n_components
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 def fast_hilbert(x):
@@ -156,32 +61,16 @@ def prepare_hilbert(data, sampling_rate_raw,
     return decimated
 
 
-def plot_topomap_difference(data_1, data_2, info, factor=1.0):
-    data_1 = data_1.copy()
-    data_2 = data_2.copy()
-
-    from mne.channels.layout import (_merge_grad_data, find_layout,
-                                     _pair_grad_sensors)
-    picks, pos = _pair_grad_sensors(info, find_layout(info))
-    data_1 = _merge_grad_data(data_1[picks], method='rms').reshape(-1)
-    data_2 = _merge_grad_data(data_2[picks], method='rms').reshape(-1)
-    
-    data = data_2 - data_1
-
-    vmax = np.max(np.abs(data)) / factor
-    vmin = -vmax
-
-    fig, ax = plt.subplots()
-    mne.viz.topomap.plot_topomap(data, pos, axes=ax, vmin=vmin, vmax=vmax)
-
-    return fig
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--raw')
     parser.add_argument('--empty', nargs='+')
     parser.add_argument('--save_path')
+    parser.add_argument('--tasks')
+    parser.add_argument('--method')
+    parser.add_argument('--band')
+    parser.add_argument('--compute_stc')
+    parser.add_argument('--normalize')
 
     cli_args = parser.parse_args()
 
@@ -189,47 +78,55 @@ if __name__ == '__main__':
 
     save_path = cli_args.save_path if PLOT_TO_PICS else None
 
-    src_method = 'vol'
+    vol_spacing = '10'
     mne_method, mne_depth = 'dSPM', None
 
     sampling_rate_raw = 100.0
+    prefilter_band = (1, 40)
 
-    # # FDMSA:
-    # tasks = ['heart', 'tone']
+    compute_stc = True
+    if cli_args.compute_stc:
+        compute_stc = True if cli_args.compute_stc == 'true' else False
 
-    # Meditaatio:
-    tasks = ['plan', 'anx']
+    pointwise_normalization = True
+    if cli_args.normalize:
+        pointwise_normalization = True if cli_args.normalize == 'true' else False
 
-    preproc_filter = (1, 40)
+    # band = (17, 25)
+    band = (7, 14)
+    if cli_args.band:
+        band = (int(cli_args.band.split()[0]), int(cli_args.band.split()[1]))
 
     # computation_method = 'hilbert'
     computation_method = 'psd'
+    if cli_args.method:
+        computation_method = cli_args.method
 
-    band = ('alpha', (7, 14))
-    # band = ('beta', (17, 25))
+    tasks = ('mind', 'plan')
+    if cli_args.tasks:
+        tasks = cli_args.tasks.split()[0], cli_args.tasks.split()[1]
 
-    surf_spacing = 'ico3'
-    vol_spacing = '10'
-    page = 4
-
-    # hilbert ica settings
     sampling_rate_hilbert = 1.0
 
-    # process similarly to input data 
-    empty_paths = cli_args.empty
-    empty_raws = []
-    for fname in empty_paths:
-        raw = mne.io.Raw(fname, preload=True, verbose='error')
-        raw.resample(sampling_rate_raw)
-        raw, _ = preprocess(raw, band=preproc_filter)
-        empty_raws.append(raw)
-    empty_raw = mne.concatenate_raws(empty_raws)
-    empty_raws = []
+    if compute_stc:
+        # process similarly to input data 
+        empty_paths = cli_args.empty
+        empty_raws = []
+        for fname in empty_paths:
+            raw = mne.io.Raw(fname, preload=True, verbose='error')
+            raw.filter(*prefilter_band)
+            raw.crop(tmin=(raw.times[0]+3), tmax=raw.times[-1]-3)
+            raw.resample(sampling_rate_raw)
+            raw.drop_channels([ch for idx, ch in enumerate(raw.info['ch_names'])
+                               if idx not in mne.pick_types(raw.info, meg=True)])
+            empty_raws.append(raw)
+        empty_raw = mne.concatenate_raws(empty_raws)
+        empty_raws = []
 
-    print("Creating sensor covariance matrix..")
-    noise_cov = mne.compute_raw_covariance(
-        empty_raw, 
-        method='empirical')
+        print("Creating sensor covariance matrix..")
+        noise_cov = mne.compute_raw_covariance(
+            empty_raw, 
+            method='empirical')
 
     path = cli_args.raw
 
@@ -239,183 +136,199 @@ if __name__ == '__main__':
     print("Handling " + path)
 
     raw = mne.io.Raw(path, preload=True, verbose='error')
-    raw.resample(sampling_rate_raw)
-    raw, events = preprocess(raw, band=preproc_filter, min_duration=1)
 
-    # Meditaatio:
-    intervals = extract_intervals_meditation(
+    events = mne.find_events(raw, shortest_event=1, min_duration=1/raw.info['sfreq'],
+                             uint_cast=True, verbose='warning')
+
+    intervals = extract_intervals_meditaatio(
         events, 
         raw.info['sfreq'], 
         raw.first_samp,
         tasks)
-    subject_name = '_'.join(fname.split('_')[:2])
+    subject = fname.split('_block')[0]
+    identifier = fname.split('_tsss')[0]
+    trans = os.path.join(folder, subject + '-trans.fif')
 
-    # # FDMSA:
-    # intervals = extract_intervals_fdmsa_ic(events, raw.info['sfreq'],
-    #                                        raw.first_samp)
-    # code = fname.split('_tsss')[0].split('IC')[-1][2:]
-    # subject_name = 'FDMSA_' + code
+    raw.filter(*prefilter_band)
+    raw.resample(sampling_rate_raw)
+    raw.drop_channels([ch for idx, ch in enumerate(raw.info['ch_names'])
+                       if idx not in mne.pick_types(raw.info, meg=True)])
 
-    print("Using MRI subject: " + subject_name)
 
-    trans = os.path.join(folder, subject_name + '-trans.fif')
+    if compute_stc:
+        stc = create_vol_stc(
+            raw=raw, 
+            trans=trans, 
+            subject=subject, 
+            noise_cov=noise_cov, 
+            spacing=vol_spacing,
+            mne_method=mne_method,
+            mne_depth=mne_depth,
+            subjects_dir=subjects_dir) 
 
-    stc = create_vol_stc(
-        raw=raw, 
-        trans=trans, 
-        subject=subject_name, 
-        noise_cov=noise_cov, 
-        spacing=vol_spacing,
-        mne_method=mne_method,
-        mne_depth=mne_depth,
-        subjects_dir=subjects_dir) 
+        vertices = stc.vertices
 
-    vertices = stc.vertices
-
-    task_stc = {}
-    task_sensor = {}
+    task_data = {}
 
     if computation_method == 'psd':
         print("Prepare using PSD..")
+
+        if pointwise_normalization:
+            all_blocks = []
+            for key, ivals in intervals.items():
+                for ival in ivals:
+                    start = int(ival[0]*raw.info['sfreq'])
+                    end = int(ival[1]*raw.info['sfreq'])
+                    if compute_stc:
+                        all_blocks.append(stc.data[:, start:end])
+                    else:
+                        all_blocks.append(raw._data[:, start:end])
+
+            concatenated = np.concatenate(all_blocks, axis=1)
+
+            psd, freqs = mne.time_frequency.psd_array_welch(
+                concatenated, 
+                sfreq=raw.info['sfreq'],
+                n_fft=int(raw.info['sfreq']*2))
+
+            freqs_idxs = np.where((freqs >= band[0]) & (freqs <= band[1]))[0]
+
+            normalization_data = np.mean(psd[:, freqs_idxs], axis=1)
+
         for key, ivals in intervals.items():
-            stc_blocks = []
-            sensor_blocks = []
+            task_blocks = []
             for ival in ivals:
                 start = int(ival[0]*raw.info['sfreq'])
                 end = int(ival[1]*raw.info['sfreq'])
-                sensor_blocks.append(raw._data[:, start:end])
-                stc_blocks.append(stc.data[:, start:end])
+                if compute_stc:
+                    task_blocks.append(stc.data[:, start:end])
+                else:
+                    task_blocks.append(raw._data[:, start:end])
 
-            stc_data = np.concatenate(stc_blocks, axis=1)
-            sensor_data = np.concatenate(sensor_blocks, axis=1)
+            concatenated = np.concatenate(task_blocks, axis=1)
 
-            stc_psd, freqs = mne.time_frequency.psd_array_welch(
-                stc_data, 
+            psd, freqs = mne.time_frequency.psd_array_welch(
+                concatenated, 
                 sfreq=raw.info['sfreq'],
                 n_fft=int(raw.info['sfreq']*2))
-            sensor_psd, freqs = mne.time_frequency.psd_array_welch(
-                sensor_data, 
-                sfreq=raw.info['sfreq'], 
-                n_fft=int(raw.info['sfreq']*2))
 
-            freqs_idxs = np.where((freqs >= band[1][0]) & (freqs <= band[1][1]))[0]
+            freqs_idxs = np.where((freqs >= band[0]) & (freqs <= band[1]))[0]
 
-            task_stc[key] = np.mean(stc_psd[:, freqs_idxs], axis=1)
-            task_sensor[key] = np.mean(sensor_psd[:, freqs_idxs], axis=1)
+            task_data[key] = np.mean(psd[:, freqs_idxs], axis=1)
+
+            if pointwise_normalization:
+                task_data[key] /= np.abs(normalization_data)
+
     elif computation_method == 'hilbert':
         print("Prepare using hilbert")
-        stc_filtered_data = mne.filter.filter_data(
-            stc.data, raw.info['sfreq'], l_freq=band[1][0], h_freq=band[1][1])
-        stc_data_hilbert = prepare_hilbert(
-            stc_filtered_data, sampling_rate_raw, sampling_rate_hilbert)
-        sensor_filtered_data = mne.filter.filter_data(
-            raw._data, raw.info['sfreq'], l_freq=band[1][0], h_freq=band[1][1])
-        sensor_data_hilbert = prepare_hilbert(
-            sensor_filtered_data, sampling_rate_raw, sampling_rate_hilbert)
+        if compute_stc:
+            filtered_data = mne.filter.filter_data(
+                stc.data, raw.info['sfreq'], l_freq=band[0], h_freq=band[1])
+        else:
+            filtered_data = mne.filter.filter_data(
+                raw._data, raw.info['sfreq'], l_freq=band[0], h_freq=band[1])
+
+        data_hilbert = prepare_hilbert(
+            filtered_data, sampling_rate_raw, sampling_rate_hilbert)
+
+        if pointwise_normalization:
+            all_blocks = []
+            for key, ivals in intervals.items():
+                for ival in ivals:
+                    start = int(ival[0] * sampling_rate_hilbert)
+                    end = int(ival[1] * sampling_rate_hilbert)
+                    all_blocks.append(np.mean(data_hilbert[:, start:end], axis=1))
+            normalization_data = np.mean(all_blocks, axis=0)
 
         for key, ivals in intervals.items():
-
-            stc_blocks = []
-            sensor_blocks = []
-
-            length = 2
+            task_blocks = []
             for ival in ivals:
+                start = int(ival[0] * sampling_rate_hilbert)
+                end = int(ival[1] * sampling_rate_hilbert)
+                task_blocks.append(np.mean(data_hilbert[:, start:end], axis=1))
 
-                subivals = [(istart*sampling_rate_hilbert, (istart + length)*sampling_rate_hilbert) 
-                            for istart in range(int(ival[0]), int(ival[1]), length)]
-                for subival in subivals:
-                    start = int(subival[0])
-                    end = int(subival[1])
-
-                    if end >= stc_data_hilbert.shape[-1]:
-                        continue
-
-                    stc_blocks.append(np.mean(stc_data_hilbert[:, start:end], axis=1))
-                    sensor_blocks.append(np.mean(sensor_data_hilbert[:, start:end], axis=1))
-
-            task_stc[key] = np.mean(stc_blocks, axis=0)
-            task_sensor[key] = np.mean(sensor_blocks, axis=0)
-    else:
-        raise Exception('Not implemented')
+            task_data[key] = np.mean(task_blocks, axis=0)
+            if pointwise_normalization:
+                task_data[key] /= np.abs(normalization_data)
 
     if save_path:
-        activation_topomaps_path = os.path.join(save_path, 'activation_topomaps')
-        contrast_topomaps_path = os.path.join(save_path, 'contrast_topomaps')
+        activation_maps_path = os.path.join(save_path, 'activation_maps')
+        contrast_maps_path = os.path.join(save_path, 'contrast_maps')
         activation_data_path = os.path.join(save_path, 'activation_data')
         contrast_data_path = os.path.join(save_path, 'contrast_data')
 
         try:
-            os.makedirs(activation_topomaps_path)
-            os.makedirs(contrast_topomaps_path)
+            os.makedirs(activation_maps_path)
+            os.makedirs(contrast_maps_path)
             os.makedirs(activation_data_path)
             os.makedirs(contrast_data_path)
         except FileExistsError:
             pass
 
-    # every sensor state separately
-    for key, data in task_sensor.items():
-        name = subject_name + '_' + key + '_sensor'
-        fig = plot_topomap_difference(np.zeros(data.shape), data, raw.info)
+    # plot every state separately
+    for key, data in task_data.items():
+        name = identifier + '_' + key
+        fig, ax = plt.subplots()
+        if compute_stc:
+            plot_vol_stc_brainmap(data, vertices, vol_spacing, subjects_dir,
+                ax) 
+        else:
+            plot_sensor_topomap(data, raw.info, ax)
+
         if save_path:
-            fig.savefig(os.path.join(activation_topomaps_path, name + '.png'))
+            fig.savefig(os.path.join(activation_maps_path, name + '.png'))
 
-    # sensor contrasts
+    # plot contrasts
     done = []
-    for key_1, data_1 in task_sensor.items():
-        for key_2, data_2 in task_sensor.items():
+    for key_1, data_1 in task_data.items():
+        for key_2, data_2 in task_data.items():
             if (key_1, key_2) in done or (key_2, key_1) in done or key_1 == key_2:
                 continue
             done.append((key_1, key_2))
 
-            name = subject_name + '_' + key_1 + '_' + key_2 + '_sensor'
-            fig = plot_topomap_difference(data_1, data_2, raw.info)
+            name = identifier + '_' + key_1 + '_' + key_2
+
+            fig, ax = plt.subplots()
+
+            if compute_stc:
+                plot_vol_stc_brainmap(data_2 - data_1, vertices, vol_spacing, subjects_dir,
+                    ax) 
+            else:
+                plot_sensor_topomap(data_2 - data_1, raw.info, ax)
+
             if save_path:
-                fig.savefig(os.path.join(contrast_topomaps_path, name + '.png'))
+                fig.savefig(os.path.join(contrast_maps_path, name + '.png'))
 
-    # every stc state separately
-    for key, data in task_stc.items():
-        name = subject_name + '_' + key + '_stc'
-        plot_vol_stc_brainmap(save_path, name, 
-            data, vertices, vol_spacing, subjects_dir,
-            folder_name="activation_brainmaps") 
-
-    # stc contrasts
-    done = []
-    for key_1, data_1 in task_stc.items():
-        for key_2, data_2 in task_stc.items():
-            if (key_1, key_2) in done or (key_2, key_1) in done or key_1 == key_2:
-                continue
-            done.append((key_1, key_2))
-            mean = data_2 - data_1
-
-            name = subject_name + '_' + key_1 + '_' + key_2 + '_stc'
-            plot_vol_stc_brainmap(save_path, name, 
-                mean, vertices, vol_spacing, subjects_dir, 
-                folder_name="contrast_brainmaps")
-
-    # save stc means to file
     if save_path:
-        for key, data in task_stc.items():
-            name = subject_name + '_' + key + '_stc'
+        for key, data in task_data.items():
+            name = identifier + '_' + key
             with open(os.path.join(activation_data_path, name + '.csv'), 'w') as f:
-                f.write(', '.join([str(elem) for elem in vertices.tolist()]) + '\n')
-                f.write(', '.join([str(elem) for elem in data.tolist()]))
-
-    # save stc contrasts to file
+                if compute_stc:
+                    f.write(', '.join([str(elem) for elem in vertices.tolist()]) + '\n')
+                    f.write(', '.join([str(elem) for elem in data.tolist()]))
+                else:
+                    f.write(', '.join([str(elem) for elem in raw.info['ch_names']]) + '\n')
+                    f.write(', '.join([str(elem) for elem in data.tolist()]))
 
     if save_path:
         done = []
-        for key_1, data_1 in task_stc.items():
-            for key_2, data_2 in task_stc.items():
+        for key_1, data_1 in task_data.items():
+            for key_2, data_2 in task_data.items():
                 if (key_1, key_2) in done or (key_2, key_1) in done or key_1 == key_2:
                     continue
                 done.append((key_1, key_2))
                 mean = data_2 - data_1
 
-                name = subject_name + '_' + key_1 + '_' + key_2 + '_stc'
+                name = identifier + '_' + key_1 + '_' + key_2
+                
                 with open(os.path.join(contrast_data_path, name + '.csv'), 'w') as f:
-                    f.write(', '.join([str(elem) for elem in vertices.tolist()]) + '\n')
-                    f.write(', '.join([str(elem) for elem in mean.tolist()]))
+                    if compute_stc:
+                        f.write(', '.join([str(elem) for elem in vertices.tolist()]) + '\n')
+                        f.write(', '.join([str(elem) for elem in mean.tolist()]))
+                    else:
+
+                        f.write(', '.join([str(elem) for elem in raw.info['ch_names']]) + '\n')
+                        f.write(', '.join([str(elem) for elem in mean.tolist()]))
 
     print("Hooray!")
 
