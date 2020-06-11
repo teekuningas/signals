@@ -28,6 +28,7 @@ from signals.cibr.lib.stc import plot_vol_stc_brainmap
 from signals.cibr.lib.sensor import plot_sensor_topomap
 
 from signals.cibr.lib.triggers import extract_intervals_meditaatio
+from signals.cibr.lib.triggers import extract_intervals_fdmsa_ic
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -71,6 +72,7 @@ if __name__ == '__main__':
     parser.add_argument('--band')
     parser.add_argument('--compute_stc')
     parser.add_argument('--normalize')
+    parser.add_argument('--depth')
 
     cli_args = parser.parse_args()
 
@@ -79,7 +81,11 @@ if __name__ == '__main__':
     save_path = cli_args.save_path if PLOT_TO_PICS else None
 
     vol_spacing = '10'
-    mne_method, mne_depth = 'dSPM', None
+    mne_method = 'dSPM'
+
+    mne_depth = None
+    if cli_args.depth is not None:
+        mne_depth = float(cli_args.depth)
 
     sampling_rate_raw = 100.0
     prefilter_band = (1, 40)
@@ -149,6 +155,15 @@ if __name__ == '__main__':
     identifier = fname.split('_tsss')[0]
     trans = os.path.join(folder, subject + '-trans.fif')
 
+    # intervals = extract_intervals_fdmsa_ic(
+    #     events,
+    #     raw.info['sfreq'],
+    #     raw.first_samp)
+    # code = fname.split('_tsss')[0].split('IC')[-1][2:]
+    # subject = 'FDMSA_' + code
+    # identifier = subject
+    # trans = os.path.join(folder, subject + '-trans.fif')
+
     raw.filter(*prefilter_band)
     raw.resample(sampling_rate_raw)
     raw.drop_channels([ch for idx, ch in enumerate(raw.info['ch_names'])
@@ -166,7 +181,7 @@ if __name__ == '__main__':
             mne_depth=mne_depth,
             subjects_dir=subjects_dir) 
 
-        vertices = stc.vertices
+        vertices = stc.vertices[0]
 
     task_data = {}
 
@@ -269,6 +284,7 @@ if __name__ == '__main__':
     for key, data in task_data.items():
         name = identifier + '_' + key
         fig, ax = plt.subplots()
+        fig.set_size_inches(20, 15)
         if compute_stc:
             plot_vol_stc_brainmap(data, vertices, vol_spacing, subjects_dir,
                 ax) 
@@ -276,7 +292,8 @@ if __name__ == '__main__':
             plot_sensor_topomap(data, raw.info, ax)
 
         if save_path:
-            fig.savefig(os.path.join(activation_maps_path, name + '.png'))
+            fig.savefig(os.path.join(activation_maps_path, name + '.png'),
+                        dpi=50)
 
     # plot contrasts
     done = []
@@ -289,6 +306,7 @@ if __name__ == '__main__':
             name = identifier + '_' + key_1 + '_' + key_2
 
             fig, ax = plt.subplots()
+            fig.set_size_inches(20, 15)
 
             if compute_stc:
                 plot_vol_stc_brainmap(data_2 - data_1, vertices, vol_spacing, subjects_dir,
@@ -297,7 +315,8 @@ if __name__ == '__main__':
                 plot_sensor_topomap(data_2 - data_1, raw.info, ax)
 
             if save_path:
-                fig.savefig(os.path.join(contrast_maps_path, name + '.png'))
+                fig.savefig(os.path.join(contrast_maps_path, name + '.png'),
+                            dpi=25)
 
     if save_path:
         for key, data in task_data.items():

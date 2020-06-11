@@ -45,6 +45,7 @@ if __name__ == '__main__':
     parser.add_argument('--identifier')
     parser.add_argument('--drop')
     parser.add_argument('--example_raw')
+    parser.add_argument('--postica')
     parser.add_argument('--coefficients_1', nargs='+')
     parser.add_argument('--coefficients_2', nargs='+')
 
@@ -107,10 +108,13 @@ if __name__ == '__main__':
 
     questionnaire = pd.DataFrame(questionnaire, columns=header)
 
-    pretransform = False
+    if cli_args.postica == 'true':
+        postica = True
+    else:
+        postica = False
+
     random_state = 15
     n_contrast_components = 3
-    n_cca_components = 3
     behav_vars = ['BDI', 'BAI', 'BIS', 'BasTotal']
 
     behav_data = []
@@ -124,108 +128,68 @@ if __name__ == '__main__':
 
     contrast_pca = PCA(n_components=n_contrast_components, whiten=True)
     contrast_wh = contrast_pca.fit_transform(np.array(contrast_data))
-    contrast_mixing = contrast_pca.components_
-    print("Contrast explained variance: " + str(contrast_pca.explained_variance_ratio_))
-    print("Sum: " + str(np.sum(contrast_pca.explained_variance_ratio_)))
 
+    print("Explained variance: " + str(np.sum(contrast_pca.explained_variance_ratio_)))
 
-    # from statsmodels.multivariate.cancorr import CanCorr
-    # cancorr = CanCorr(behav_wh, contrast_wh)
-    # print(cancorr.corr_test().summary())
-
-    comp_idx = 0
-
-    X, Y = behav_wh, contrast_wh
-    stacked_data = np.hstack([X, Y])
-
-    if postica:
-        print("Decomposing stacked data with ICA..")
-        stacked_pca = PCA(n_components=n_cca_components, whiten=True)
-        stacked_wh = stacked_pca.fit_transform(stacked_data)
-        stacked_ica = FastICA(whiten=False, random_state=random_state).fit(stacked_wh)
-        stacked_mixing = np.dot(stacked_ica.components_, stacked_pca.components_)
+    if not postica:
+        contrast_mixing = contrast_pca.components_
+        contrast_exp_var = contrast_pca.explained_variance_ratio_
     else:
-        print("Decomposing stacked data with PCA..")
-        stacked_pca = PCA(n_components=n_cca_components).fit(stacked_data)
-        stacked_mixing = stacked_pca.components_
+        contrast_ica = FastICA(whiten=False, random_state=random_state)
+        contrast_wh = contrast_ica.fit_transform(contrast_wh)
+        contrast_mixing = np.dot(contrast_ica.components_, contrast_pca.components_)
+        contrast_exp_var = ((np.var(contrast_mixing, axis=1) / 
+                             np.sum((np.var(contrast_mixing, axis=1)))) * 
+                            np.sum(contrast_pca.explained_variance_ratio_))
 
-    corrcoefs = [np.corrcoef(np.dot(X, stacked_mixing[idx, :n_behav_components]),
-                             np.dot(Y, stacked_mixing[idx, n_behav_components:]))[0, 1] for idx in range(stacked_mixing.shape[0])]
+    for contrast_idx in range(n_contrast_components):
+        """
+        """
+        for behav_idx, behav_name in enumerate(behav_vars):
+            """
+            """
+            contrast_weights = contrast_mixing[contrast_idx]
 
-    stacked_mixing = stacked_mixing[np.argsort(-np.array(corrcoefs))]
+            X = contrast_wh[:, contrast_idx]
+            Y = behav_data[:, behav_idx]
 
-    sample_stat = np.corrcoef(np.dot(X, stacked_mixing[comp_idx, :n_behav_components]),
-                              np.dot(Y, stacked_mixing[comp_idx, n_behav_components:]))[0, 1]
+            pearson_coef, pearson_pvalue = scipy.stats.pearsonr(X, Y)
+            spearman_coef, spearman_pvalue = scipy.stats.spearmanr(X, Y)
 
-    perm_stats = []
-    print("Running permutation tests..")
-    for perm_idx, ordering in enumerate([np.random.permutation(behav_wh.shape[0]) for _ in range(n_perm)]):
-        if perm_idx % 100 == 0 and perm_idx != 0:
-            print(str(perm_idx) + '/' + str(n_perm) + " permutations done.")
-        X, Y = behav_wh[ordering, :], contrast_wh
-        stacked_data_perm = np.hstack([X, Y])
+            exp_var = contrast_exp_var[contrast_idx]
 
-        if postica:
-            stacked_pca_perm = PCA(n_components=n_cca_components, whiten=True)
-            stacked_wh_perm = stacked_pca_perm.fit_transform(stacked_data_perm)
-            stacked_ica_perm = FastICA(whiten=False, random_state=random_state).fit(stacked_wh_perm)
-            stacked_perm_mixing = np.dot(stacked_ica_perm.components_, stacked_pca_perm.components_)
+            fig, ax = plt.subplots(3)
 
-        else:
-            stacked_pca_perm = PCA(n_components=n_cca_components).fit(stacked_data_perm)
-            stacked_perm_mixing = stacked_pca_perm.components_
+            # plot contrast part
+            if len(contrast_weights) > 500:
+                vertices = np.array([int(vx) for vx in vertex_list[0]])
+                plot_vol_stc_brainmap(contrast_weights, vertices, '10', subjects_dir, ax[1])
+            else:
+                plot_sensor_topomap(contrast_weights, raw.info, ax[1])
 
-        perm_stat = np.corrcoef(np.dot(X, stacked_perm_mixing[comp_idx, :n_behav_components]),
-                                np.dot(Y, stacked_perm_mixing[comp_idx, n_behav_components:]))[0, 1]
-        perm_stats.append(perm_stat)
+            frame = pd.DataFrame(np.transpose([X, Y]),
+                                 columns=['Brain component', 'Behavioral component'])
 
-    pvalue = len(list(filter(bool, perm_stats > sample_stat))) / n_perm
-    print("First correlation: " + str(sample_stat))
-    print("Pvalue: " + str(pvalue))
+            sns.regplot(x='Brain component', y='Behavioral component',
+                    data=frame, ax=ax[2], scatter_kws={'s': 5}, line_kws={'lw': 1})
 
-    for comp_idx in range(n_cca_components):
+            decomp_type = 'ICA' if postica else 'PCA'
 
-        behav_weights = np.dot(stacked_mixing[comp_idx, :n_behav_components], 
-                               behav_mixing)
+            title = '{0} component {1}\nExp var: {2:.3f}\nPearson: {3:.3f} ({4:.3f})\nSpearman: {5:.3f} ({6:.3f})'.format(
+                decomp_type, str(contrast_idx+1).zfill(1), exp_var,
+                pearson_coef, pearson_pvalue, 
+                spearman_coef, spearman_pvalue)
 
-        contrast_weights = np.dot(stacked_mixing[comp_idx, n_behav_components:], 
-                                  contrast_mixing)
+            ax[0].axis('off')
+            fig.suptitle(title)
 
-        X = np.dot(behav_wh, stacked_mixing[comp_idx, :n_behav_components])
-        Y = np.dot(contrast_wh, stacked_mixing[comp_idx, n_behav_components:])
+            if save_path:
+                path = os.path.join(save_path, 'results')
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                fname = (decomp_type.lower() + '_' + str(cli_args.identifier) + '_' + 
+                         str(contrast_idx+1).zfill(2) + '_' + behav_name.lower() + '.png')
+                fig.savefig(os.path.join(path, fname))
 
-        corrcoef = np.corrcoef(X, Y)[0, 1]
-
-        print("Correlation coefficient for component " + str(comp_idx+1).zfill(2) + ": " + str(corrcoef))
-
-        fig, ax = plt.subplots(3)
-
-        # plot contrast part
-        if len(contrast_weights) > 500:
-            vertices = np.array([int(vx) for vx in vertex_list[0]])
-            plot_vol_stc_brainmap(contrast_weights, vertices, '10', subjects_dir, ax[0])
-        else:
-            plot_sensor_topomap(contrast_weights, raw.info, ax[0])
-
-        ax[1].bar(behav_vars, behav_weights, align='center', alpha=0.5)
-
-        frame = pd.DataFrame(np.transpose([X, Y]),
-                             columns=['Brain component', 'Behavioral component'])
-
-        sns.regplot(x='Brain component', y='Behavioral component',
-                data=frame, ax=ax[2], scatter_kws={'s': 5}, line_kws={'lw': 1})
-
-        title = ('CCA component ' + str(comp_idx+1).zfill(1) + 
-                 ' (pvalue: ' + str(pvalue).zfill(3) + ')')
-        fig.suptitle(title)
-
-        if save_path:
-            path = os.path.join(save_path, 'cca_comps')
-            if not os.path.exists(path):
-                os.makedirs(path)
-            fname = ('cca_' + str(cli_args.identifier) + '_' + 
-                     str(comp_idx+1).zfill(2) + '.png')
-            fig.savefig(os.path.join(path, fname))
-
-    print("miau")
+    print("Finished.")
 

@@ -38,7 +38,6 @@ def create_vol_stc(raw, trans, subject, noise_cov, spacing,
         noise_cov=noise_cov,
         depth=mne_depth,
         fixed=False,
-        limit_depth_chs=False,
         verbose='warning')
 
     print("Applying inverse operator..")
@@ -56,7 +55,6 @@ def create_vol_stc(raw, trans, subject, noise_cov, spacing,
 
 def plot_vol_stc_brainmap(brainmap, vertices, spacing, subjects_dir, axes, vmax=None, cap=0.85, cmap='RdBu_r'):
 
-
     brainmap_inc = brainmap.copy()
     brainmap_dec = brainmap.copy()
 
@@ -67,7 +65,9 @@ def plot_vol_stc_brainmap(brainmap, vertices, spacing, subjects_dir, axes, vmax=
     if not vmax:
         vmax = np.max([np.max(brainmap_inc), np.max(brainmap_dec)])
 
-    if np.max(brainmap_dec) > 0.01:
+    if np.max(brainmap_dec) <= 0.00000001 and np.max(brainmap_dec) > 0:
+        print("Warning: negative might incorrectly vanish, as brainmap_dec very small")
+    if np.max(brainmap_dec) > 0.00000001:
         factor = np.sqrt(np.max(brainmap_inc)) / np.sqrt(np.max(brainmap_dec))
 
         if factor > 1:
@@ -106,13 +106,13 @@ def plot_vol_stc_brainmap(brainmap, vertices, spacing, subjects_dir, axes, vmax=
 
     stc_inc = mne.source_estimate.VolSourceEstimate(
         brainmap_inc[:, np.newaxis],
-        vertices,
+        [vertices],
         tstep=0.1,
         tmin=0,
         subject='fsaverage')
     stc_dec = mne.source_estimate.VolSourceEstimate(
         brainmap_dec[:, np.newaxis],
-        vertices,
+        [vertices],
         tstep=0.1,
         tmin=0,
         subject='fsaverage')
@@ -127,15 +127,18 @@ def plot_vol_stc_brainmap(brainmap, vertices, spacing, subjects_dir, axes, vmax=
     nifti_inc = stc_inc.as_volume(src).slicer[:, :, :, 0]
     nifti_dec = stc_dec.as_volume(src).slicer[:, :, :, 0]
 
-    display = plot_glass_brain(aseg_img, axes=axes, display_mode='lzr')
+    display = plot_glass_brain(aseg_img, axes=axes, display_mode='lzr',
+                               annotate=False)
 
     import matplotlib as mpl
     dec_cmap = mpl.colors.ListedColormap(mpl.cm.get_cmap(cmap)(np.linspace(0.5, 0, 256)))
     inc_cmap = mpl.colors.ListedColormap(mpl.cm.get_cmap(cmap)(np.linspace(0.5, 1, 256)))
 
     if plot_inc:
-        display.add_overlay(nifti_inc, alpha=inc_alpha, cmap=inc_cmap)
+        display.add_overlay(nifti_inc, alpha=inc_alpha, cmap=inc_cmap,
+                            interpolation='none', resampling_interpolation=None)
 
     if plot_dec:
-        display.add_overlay(nifti_dec, alpha=dec_alpha, cmap=dec_cmap)
+        display.add_overlay(nifti_dec, alpha=dec_alpha, cmap=dec_cmap,
+                            interpolation='none', resampling_interpolation=None)
 

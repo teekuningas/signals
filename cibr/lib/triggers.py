@@ -4,7 +4,7 @@ import numpy as np
 
 
 def extract_intervals_fdmsa_ic(events, sfreq, first_samp):
-    """ meditation intervals """
+    """ fdmsa intervals """
     intervals = OrderedDict()
 
     trigger_info = [
