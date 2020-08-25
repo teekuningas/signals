@@ -80,13 +80,25 @@ def extract_intervals_fdmsa_rest(events, sfreq, first_samp, length):
     return intervals
 
 
+def extract_intervals_meditaatio_rest(times, conds):
+    """ meditaatio rest intervals """
+    intervals = OrderedDict()
+
+    if 'eo' in conds:
+        intervals['eo'] = [(10, (times[-1] / 2) - 10)]
+    if 'ec' in conds:
+        intervals['ec'] = [((times[-1] / 2) + 10, times[-1] - 10)]
+
+    return intervals
+
+
 def extract_intervals_meditaatio(events, sfreq, first_samp, tasks):
     """ meditation intervals """
     intervals = OrderedDict()
 
     trigger_info = [
         ('mind', 10),
-        ('rest', 11),
+        ('eo', 11),
         ('plan', 12),
         ('anx', 13),
     ]

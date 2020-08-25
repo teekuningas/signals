@@ -18,13 +18,21 @@ import matplotlib as mpl
 
 
 from signals.cibr.lib.stc import plot_vol_stc_brainmap
+from signals.cibr.lib.stc import get_vol_labeled_data
+from signals.cibr.lib.stc import plot_vol_stc_labels
 from signals.cibr.lib.sensor import plot_sensor_topomap
 
 from signals.cibr.lib.utils import MidpointNormalize
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
+
+import logging
+logger = logging.getLogger("mne")
+logger.setLevel(logging.ERROR)
+
 
 
 if __name__ == '__main__':
@@ -34,6 +42,7 @@ if __name__ == '__main__':
     parser.add_argument('--identifier')
     parser.add_argument('--example_raw')
     parser.add_argument('--drop')
+    parser.add_argument('--spacing')
     parser.add_argument('--coefficients_1', nargs='+')
     parser.add_argument('--coefficients_2', nargs='+')
     parser.add_argument('--coefficients_norm', nargs='+')
@@ -43,6 +52,10 @@ if __name__ == '__main__':
     subjects_dir = os.environ['SUBJECTS_DIR']
 
     save_path = cli_args.save_path if PLOT_TO_PICS else None
+
+    vol_spacing = '10'
+    if cli_args.spacing is not None:
+        vol_spacing = str(cli_args.spacing)
 
     data_1 = []
     data_2 = []
@@ -110,26 +123,50 @@ if __name__ == '__main__':
     raw.drop_channels([ch for idx, ch in enumerate(raw.info['ch_names'])
                        if idx not in mne.pick_types(raw.info, meg=True)])
 
-    weights = np.cbrt(np.abs(np.mean(norm_data, axis=0)))
+    # weights = np.cbrt(np.abs(np.mean(norm_data, axis=0)))
+    weights = np.abs(np.mean(norm_data, axis=0))
+    # weights = np.ones(data.shape[1])
     weights = weights / np.max(weights)
 
     meanmap = np.mean(data, axis=0)
 
+    if len(meanmap) > 500:
+        vertices = np.array([int(vx) for vx in vertex_list[0]])
+
+    def plot_labeled_data(brainmap, fname):
+        fig, ax = plt.subplots()
+        fig.set_size_inches(10, 10)
+        plot_vol_stc_labels(brainmap, vertices, vol_spacing, subjects_dir, ax, n_labels=12)
+        if save_path:
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
+
+            fig.savefig(os.path.join(save_path, fname), dpi=100)
+
+    if len(meanmap) > 500:
+        plot_labeled_data(meanmap, cli_args.identifier + '_mean_labels.png')
+
     statmap = []
+
     for spatial_idx in range(data.shape[1]):
         stat = scipy.stats.ttest_1samp(data[:, spatial_idx], 0)[0]
         statmap.append(stat)
 
     statmap = statmap * weights
 
-    crit_val = np.abs(np.percentile(np.abs(statmap), 90))
+    if len(meanmap) > 500:
+        plot_labeled_data(statmap, cli_args.identifier + '_stat_labels.png')
+
+    # crit_val = scipy.stats.t.ppf(0.995, df=len(statmap))
+    crit_val = np.abs(np.percentile(np.abs(statmap), 95.0))
     print("Critical value: " + str(crit_val))
-    # crit_val = 10000
 
     def stat_fun(x):
         stats = []
         for idx in range(x.shape[1]):
+
             stat = scipy.stats.ttest_1samp(x[:, idx], 0)[0] * weights[idx]
+
             stats.append(stat)
         return np.array(stats)
  
@@ -151,6 +188,9 @@ if __name__ == '__main__':
 
         for vert_idx in results[1][cluster_idx][1]:
             cluster_map[vert_idx] = 1 + np.random.normal(scale=0.001)
+
+        if len(meanmap) > 500:
+            plot_labeled_data(cluster_map, cli_args.identifier + '_cluster_' + str(cluster_idx+1) + '_labels.png')
 
         pvalue = results[2][cluster_idx]
 
@@ -184,14 +224,13 @@ if __name__ == '__main__':
 
 
     if len(meanmap) > 500:
-        vertices = np.array([int(vx) for vx in vertex_list[0]])
-        plot_vol_stc_brainmap(statmap, vertices, '10', subjects_dir,
-                          ax_stats, cap=0.8)
-        plot_vol_stc_brainmap(meanmap, vertices, '10', subjects_dir,
-                          ax_mean, cap=0.8)
+        plot_vol_stc_brainmap(statmap, vertices, vol_spacing, subjects_dir,
+                          ax_stats, cap=0.9)
+        plot_vol_stc_brainmap(meanmap, vertices, vol_spacing, subjects_dir,
+                          ax_mean, cap=0.9)
         for cluster_idx in range(n_clusters):
             plot_vol_stc_brainmap(clusters[cluster_idx][1], vertices,
-                                  '10', subjects_dir, ax_clusters[cluster_idx],
+                                  vol_spacing, subjects_dir, ax_clusters[cluster_idx],
                                   cmap='PiYG', cap=0.0)
 
     else:
