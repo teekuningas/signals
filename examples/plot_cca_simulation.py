@@ -7,7 +7,7 @@ This example shows how to simulate MEG data with individual differences and then
 """
 
 # %%
-# Import necessary libraries
+# Import necessary libraries.
 
 import logging
 import warnings
@@ -26,13 +26,12 @@ from sparsecca import cca_ipls
 from sklearn.decomposition import PCA
 
 # Suppress warnings and set plotting and logging properties
-
 plt.rcParams.update({'font.size': 10.0})
 logging.getLogger('mne').setLevel(logging.ERROR)
 mne.viz.set_3d_backend('pyvista')
 
 # %%
-# Set up paths
+# Set up paths.
 
 data_path = mne.datasets.sample.data_path()
 subjects_dir = os.path.join(data_path, 'subjects')
@@ -42,7 +41,7 @@ raw_fname = os.path.join(data_path, 'MEG', subject, 'sample_audvis_raw.fif')
 fwd_fname = os.path.join(data_path, 'MEG', subject, 'sample_audvis-meg-oct-6-fwd.fif')
 
 # %%
-# Read raw, drop eeg data and resample
+# Read raw, drop eeg data and resample.
 
 raw = mne.io.Raw(raw_fname, preload=True)
 picks = mne.pick_types(raw.info, meg=True)
@@ -51,7 +50,7 @@ raw.drop_channels([ch_name for ch_idx, ch_name in enumerate(raw.info['ch_names']
 raw.resample(50)
 
 # %%
-# Define some variables needed later on
+# Define some variables needed later on.
 
 info = raw.info
 fwd = mne.read_forward_solution(fwd_fname)
@@ -64,8 +63,13 @@ n_times = length / tstep
 events = [[0, 0, 1]]
 fmin, fmax = 1, 20
 inv_method = 'dSPM'
-jitter_factor = 0.05
+jitter_factor = 0.01
 n_perm = 500
+
+# how many canonical correlations are computed
+# and to which dimension to reduce the contrast data
+n_cca_components = 1
+n_contrast_components = 4
 
 # penalties for CCA, use no penalty for now
 penalty_behav_ratio=1.0
@@ -82,7 +86,7 @@ cond_2_ival = length / 2, length
 rand_state = np.random.RandomState(23)
 
 # %%
-# Define function to get extended label spanning vertices around a label center
+# Define function to get extended label spanning vertices around a label center.
 
 def get_label(regexp, extent=5):
     """ get label by regexp
@@ -98,7 +102,7 @@ def get_label(regexp, extent=5):
     return label, center
 
 # %%
-# Use the function to get labels for parietal, frontal and temporal areas in both hemis
+# Use the function to get labels for parietal, precentral and temporal areas in both hemis.
 
 label_rh_par, center_rh_par = get_label('superiorparietal-rh')
 label_lh_par, center_lh_par = get_label('superiorparietal-lh')
@@ -108,7 +112,7 @@ label_rh_temp, center_rh_temp = get_label('superiortemporal-rh')
 label_lh_temp, center_lh_temp = get_label('superiortemporal-lh')
 
 # %%
-# Define function to simulate raw data
+# Define function to simulate raw data.
 
 def simulate(n_subjects, cond_1_deps, cond_2_deps):
     """ Generates raw data with alpha oscillations from two resting-state like conditions 
@@ -185,9 +189,20 @@ def simulate(n_subjects, cond_1_deps, cond_2_deps):
     return raws, behav_data, inv
 
 # %% 
-# Now that there is a simulation function, simulate data
+# Now that there is a simulation function, simulate data.
+# The simulation sets up three areas of activation (temporal, parietal and precentral),
+# and two different conditions (0s to 25s, and 25s to 50s).
+# In to temporal areas, we put an oscillatory dipole of 10Hz that oscillates 
+# on some base amplitude, which varies subject by subject, and does not depend on the condition. 
+# To precentral areas we put oscillatory dipole of 10Hz, that has amplitude of 2 * base amplitude
+# in the first condition and 0.5 * base amplitude in the second condition, giving a "constant" 
+# difference between the conditions.
+# To parietal areas we put oscillatory dipole of 10Hz, which can be set to vary with respect to
+# behavioral variables. Here we make it so that the first condition does not vary with the 
+# behavioral variables, but the second condition is very correlated with the first
+# behavioral variable.
 
-n_subjects = 15
+n_subjects = 10
 
 # Generate behav data from multivariate normal distribution
 behav_mean = [0, 0]
@@ -205,12 +220,12 @@ cond_2_deps = np.array([behav_data[:, 0], np.zeros(n_subjects)]).T
 raws, behavs, inv = simulate(n_subjects, cond_1_deps, cond_2_deps)
 
 # %%
-# Take a look at the first raw 
+# Take a look at the first raw.
 
 raws[0].plot()
 
 # %%
-# Plot how the simulated data looks as a PSD averaged over channels
+# Plot how the simulated data looks as a PSD averaged over channels.
 
 fig, (ax_1, ax_2) = plt.subplots(2)
 ax_1.set_title('Cond 1')
@@ -260,7 +275,7 @@ def compute_activation_maps(raw, inv):
     return cond_1_act, cond_2_act, cond_1_psd, cond_2_psd, freqs, vertices
 
 # %%
-# Compute contrast maps using the function
+# Compute contrast maps using the function.
 
 contrast_maps = []
 cond_1_psds = []
@@ -274,7 +289,7 @@ for raw in raws:
     vertices = result[5]
 
 # %% 
-# Plot the PSD's that the contrast maps are based on
+# Plot the PSDs that the contrast maps are based on.
 
 fig, (ax_1, ax_2) = plt.subplots(2)
 fig.suptitle('PSDs in source space')
@@ -290,7 +305,7 @@ fig.tight_layout()
 plt.show()
 
 # %%
-# Define function for plotting contrast maps
+# Define function for plotting contrast maps.
 
 def plot_contrast_map(contrast_map, vertices):
 
@@ -316,12 +331,16 @@ def plot_contrast_map(contrast_map, vertices):
                           'focalpoint': [0, 0, 0]})
 
 # %%
-# Plot average contrast map over all subjects
+# Plot average contrast map over all subjects.
 
-plot_contrast_map(np.mean([np.abs(elem) for elem in contrast_maps], axis=0), vertices)
+plot_contrast_map(np.mean(contrast_maps, axis=0), vertices)
 
 # %%
-# Define function for CCA computation
+# Note that the parietal activation is seen especially in the precentral area, where we 
+# set up "constant" difference. It is not seen in the temporal areas, 
+# as there the conditions do not differ. It is also not seen in the 
+# parietal areas, as the differences cancel out there.
+# Next, define function for CCA computation.
 
 def compute_cca(contrast_data, behav_data, n_contrast_components, n_cca_components):
 
@@ -349,21 +368,17 @@ def compute_cca(contrast_data, behav_data, n_contrast_components, n_cca_componen
     return cca_contrast_weights, cca_behav_weights, contrast_mixing, contrast_wh, behav_wh
 
 # %%
-# Use the function to compute the CCA
-
-n_cca_components = 1
-n_contrast_components = 4
+# Use the function to compute the CCA.
 
 cca_contrast_weights, cca_behav_weights, contrast_mixing, contrast_wh, behav_wh = compute_cca(
     contrast_maps, behavs, n_contrast_components=n_contrast_components, 
     n_cca_components=n_cca_components)
 
 # %% 
-# Define function for plotting canonical weights of behavioral variables
+# Define function for plotting canonical weights of behavioral variables.
 
 def plot_behav_weights(comp_idx, cca_behav_weights):
-    """
-    """
+
     behav_weights = cca_behav_weights[:, comp_idx]
 
     fig, ax = plt.subplots()
@@ -375,20 +390,18 @@ def plot_behav_weights(comp_idx, cca_behav_weights):
     plt.show()
 
 # %% 
-# Define function for plotting canonical weights of contrast variables
+# Define function for plotting canonical weights of contrast variables.
 
 def plot_contrast_weights(comp_idx, cca_contrast_weights, contrast_mixing):
-    """
-    """
+
     contrast_weights = np.dot(cca_contrast_weights[:, comp_idx], contrast_mixing)
     plot_contrast_map(contrast_weights, vertices)
 
 # %% 
-# Define function for scatter plot to visualize canonical correlation
+# Define function for scatter plot to visualize canonical correlation.
 
 def plot_cca_scatter(comp_idx, contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights):
-    """
-    """
+
     X = np.dot(contrast_wh, cca_contrast_weights[:, comp_idx])
     Y = np.dot(behav_wh, cca_behav_weights[:, comp_idx])
 
@@ -411,22 +424,22 @@ def plot_cca_scatter(comp_idx, contrast_wh, behav_wh, cca_contrast_weights, cca_
     plt.show()
 
 # %%
-# With the functions defined, plot behav weights
+# With the functions defined, plot behav weights.
 
 plot_behav_weights(0, cca_behav_weights)
 
 # %%
-# Plot contrast weights
+# Plot contrast weights.
 
 plot_contrast_weights(0, cca_contrast_weights, contrast_mixing)
 
 # %%
-# Plot scatter plot
+# Plot scatter plot.
 
 plot_cca_scatter(0, contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights)
 
 # %%
-# Define function for running n permuted versions of cca
+# Define function for running permuted versions of cca.
 
 def permutations(contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights, n_perm):
     perm_stats = []
@@ -455,26 +468,24 @@ def permutations(contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights,
             corrcoefs.append(np.corrcoef(X, Y)[0, 1])
         perm_stats.append(np.max(corrcoefs))
 
-    # The first canonical correlation using the weights computed previously
+    # The first canonical correlation using the weights computed previously.
     X = np.dot(contrast_wh, cca_contrast_weights[:, 0])
     Y = np.dot(behav_wh, cca_behav_weights[:, 0])
     sample_stat = np.corrcoef(X, Y)[0, 1]
 
     # Compute fraction of coefs from permutations that are higher than the
-    # sample coefficient
+    # sample coefficient.
     pvalue = len(list(filter(bool, perm_stats > sample_stat))) / n_perm
-    print("Corrcoef for first component: " + str(round(sample_stat, 4)) + " (pvalue " + str(pvalue) + ")")
+    print("Corrcoef for first component: " + str(round(sample_stat, 4)) + 
+          " (pvalue " + str(pvalue) + ")")
 
 # %%
-# Run permutations
+# Run permutations.
 
 permutations(contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights, n_perm)
 
 # %%
-# Thats quite all. As wee see, with small sample and many parameters, 
-# correlation coefficients of permuted samples can get high too, 
-# making result only weakly significant. Let's thus experiment a bit and 
-# try increasing n_subjects to 30.
+# Let's experiment a bit and try increasing n_subjects to 30.
 
 n_subjects = 30
 
@@ -498,18 +509,18 @@ cca_contrast_weights, cca_behav_weights, contrast_mixing, contrast_wh, behav_wh 
     n_cca_components=n_cca_components)
 
 # %%
-# Show the scatter plot
+# Show the scatter plot.
 
 plot_cca_scatter(0, contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights)
 
 # %% 
-# And the permutation test result
+# And the permutation test result.
 
 permutations(contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights, n_perm)
 
 # %%
-# Now the result is highly signifcant. Let's next try making the correlation much weaker, from 1.0 to 0.6, 
-# keeping the same n_subjets
+# Let's next try making the correlation much weaker, from 1.0 to 0.6, 
+# keeping the same n_subjects.
 # First define a function that when given a vector generates another with prespecified correlation to the first one.
 
 def generate_correlated(x, corr):
@@ -519,13 +530,13 @@ def generate_correlated(x, corr):
     return np.matmul(Y, C)[:, 1]
 
 # %%
-# Use the function for dependency structure
+# Use the function for dependency structure.
 
 cond_1_deps = np.zeros((n_subjects, 2))
 cond_2_deps = np.array([generate_correlated(behav_data[:, 0], 0.6), np.zeros(n_subjects)]).T
 
 # %%
-# And go on to simulate
+# And go on to simulate.
 
 raws, behavs, inv = simulate(n_subjects, cond_1_deps, cond_2_deps)
 
@@ -539,12 +550,12 @@ cca_contrast_weights, cca_behav_weights, contrast_mixing, contrast_wh, behav_wh 
     n_cca_components=n_cca_components)
 
 # %%
-# Show the scatter plot
+# Show the scatter plot.
 
 plot_cca_scatter(0, contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights)
 
 # %% 
-# And the permutation test result
+# And the permutation test result.
 
 permutations(contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights, n_perm)
 
