@@ -503,9 +503,9 @@ plot_cca_scatter(0, contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weigh
 permutations(contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights, n_perm)
 
 # %%
-# Now the result is highly signifcant. Let's next try making the correlation much weaker, from 1.0 to 0.5, keeping
-# n_subjects as 30.
-# First define a function that given a vector generates another with prespecified correlation to the first one
+# Now the result is highly signifcant. Let's next try making the correlation much weaker, from 1.0 to 0.6, 
+# keeping the same n_subjets
+# First define a function that when given a vector generates another with prespecified correlation to the first one.
 
 def generate_correlated(x, corr):
     Y = np.random.randn(len(x), 2)
@@ -517,7 +517,7 @@ def generate_correlated(x, corr):
 # Use the function for dependency structure
 
 cond_1_deps = np.zeros((n_subjects, 2))
-cond_2_deps = np.array([generate_correlated(behav_data[:, 0], 0.5), np.zeros(n_subjects)]).T
+cond_2_deps = np.array([generate_correlated(behav_data[:, 0], 0.6), np.zeros(n_subjects)]).T
 
 # %%
 # And go on to simulate

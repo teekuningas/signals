@@ -1,4 +1,4 @@
-doc/auto_examples
-doc/_build
-doc/_static
-doc/_templates
+sphinx/auto_examples
+sphinx/_build
+sphinx/_static
+sphinx/_templates

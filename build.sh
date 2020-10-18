@@ -1,4 +1,4 @@
 #!/bin/bash
 git checkout master examples
-cd doc
+cd sphinx
 make html
