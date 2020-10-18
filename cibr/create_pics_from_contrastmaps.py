@@ -47,6 +47,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_path')
     parser.add_argument('--drop')
     parser.add_argument('--identifier')
+    parser.add_argument('--spacing')
     parser.add_argument('--example_raw')
     parser.add_argument('--coefficients_1', nargs='+')
     parser.add_argument('--coefficients_2', nargs='+')
@@ -65,6 +66,10 @@ if __name__ == '__main__':
     names_2 = []
     names_norm = []
     vertex_list = []
+
+    vol_spacing = '10'
+    if cli_args.spacing is not None:
+        vol_spacing = cli_args.spacing
 
     # meditaatio
     def name_from_fname(fname):
@@ -123,7 +128,7 @@ if __name__ == '__main__':
     raw.drop_channels([ch for idx, ch in enumerate(raw.info['ch_names'])
                        if idx not in mne.pick_types(raw.info, meg=True)])
 
-    pretransform = True
+    pretransform = False
 
     if pretransform:
         print("Pretransforming non-normal variables")
@@ -138,27 +143,24 @@ if __name__ == '__main__':
     n_subjects = contrast_data.shape[0]
 
     fig = plt.figure()
-    fig.suptitle('Individual spatial contrast maps', fontsize=50.0)
+    fig.suptitle('Individual spatial contrast maps', fontsize=150.0)
 
-    fig.set_size_inches(20, 4*n_subjects)
-    fig_dpi = 100
+    fig.set_size_inches(35, 10*n_subjects)
+    fig_dpi = 15
 
     # do for all subjects
     for subject_idx, subject_data in enumerate(contrast_data):
 
-        ax_info = plt.subplot2grid((n_subjects, 3), (subject_idx, 0), rowspan=1, colspan=1)
-        ax_brain = plt.subplot2grid((n_subjects, 3), (subject_idx, 1), rowspan=1, colspan=2)
+        ax_brain = plt.subplot2grid((n_subjects, 1), (subject_idx, 0), rowspan=1, colspan=1)
 
         # plot contrast part
         if len(subject_data) > 500:
             vertices = np.array([int(vx) for vx in vertex_list[0]])
-            plot_vol_stc_brainmap(subject_data, vertices, '10', subjects_dir, ax_brain, cap=0.85)
+            plot_vol_stc_brainmap(subject_data, vertices, vol_spacing, subjects_dir, ax_brain, cap=0.0)
         else:
             plot_sensor_topomap(subject_data, raw.info, ax_brain)
 
         name = names_1[subject_idx]
-        ax_info.set_title('{0}'.format(name))
-        ax_info.axis('off')
 
     if save_path:
         path = os.path.join(save_path, 'comps')

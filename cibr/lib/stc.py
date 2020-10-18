@@ -10,7 +10,7 @@ from nilearn.plotting import plot_glass_brain
 
 def create_vol_stc(raw, trans, subject, noise_cov, spacing, 
                    mne_method, mne_depth, subjects_dir):
-    """
+    """ You should not compute power spectrum after this..
     """
     
     bem = os.path.join(subjects_dir, subject, 'bem',
@@ -96,7 +96,13 @@ def plot_vol_stc_brainmap(brainmap, vertices, spacing, subjects_dir, axes, vmax=
     plot_inc = True
     plot_dec = True
 
-    inc_bottom_cap = np.percentile(brainmap_inc, cap*100)
+    cap = np.percentile(np.concatenate([brainmap_inc, brainmap_dec]), cap*100)
+
+    # inc_bottom_cap = np.percentile(brainmap_inc, cap*100)
+    # dec_bottom_cap = np.percentile(brainmap_dec, cap*100)
+    inc_bottom_cap = cap
+    dec_bottom_cap = cap
+
     mu, sigma = inc_bottom_cap, np.max(brainmap_inc) / 10000
     for idx in range(len(brainmap_inc)):
         if brainmap_inc[idx] <= mu:
@@ -104,25 +110,12 @@ def plot_vol_stc_brainmap(brainmap, vertices, spacing, subjects_dir, axes, vmax=
             if brainmap_inc[idx] < 0:
                 brainmap_inc[idx] = -brainmap_inc[idx]
 
-    # brainmap_inc[brainmap_inc <= inc_bottom_cap] = inc_bottom_cap
-    # if not np.allclose(brainmap_inc, 0):
-    #     brainmap_inc[brainmap_inc <= inc_bottom_cap] = inc_bottom_cap
-    # else:
-    #     plot_inc = False
-
-    dec_bottom_cap = np.percentile(brainmap_dec, cap*100)
     mu, sigma = dec_bottom_cap, np.max(brainmap_dec) / 10000
     for idx in range(len(brainmap_dec)):
         if brainmap_dec[idx] <= mu:
             brainmap_dec[idx] = sigma * np.random.randn() + mu
             if brainmap_dec[idx] < 0:
                 brainmap_dec[idx] = -brainmap_dec[idx]
-
-    # brainmap_dec[brainmap_dec <= dec_bottom_cap] = dec_bottom_cap
-    # if not np.allclose(brainmap_dec, 0):
-    #     brainmap_dec[brainmap_dec <= dec_bottom_cap] = dec_bottom_cap
-    # else:
-    #     plot_dec = False
 
     stc_inc = mne.source_estimate.VolSourceEstimate(
         brainmap_inc[:, np.newaxis],

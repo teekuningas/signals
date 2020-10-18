@@ -3,7 +3,7 @@ PLOT_TO_PICS=True
 if PLOT_TO_PICS:
     import matplotlib
     matplotlib.rc('figure', max_open_warning=0)
-    matplotlib.rc('font', size=3)
+    matplotlib.rc('font', size=15)
     matplotlib.use('Agg')
 
 import pyface.qt
@@ -34,44 +34,14 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
-def fast_hilbert(x):
-    return hilbert(x, fftpack.next_fast_len(x.shape[-1]))[..., :x.shape[-1]]
-
-
-def prepare_hilbert(data, sampling_rate_raw,
-                    sampling_rate_hilbert):
-    # get envelope as abs of analytic signal
-    import time
-    start = time.time()
-    rowsplits = np.array_split(data, 2, axis=0)
-    env_rowsplits = []
-    for rowsplit in rowsplits:
-        blocks = np.array_split(rowsplit, 4, axis=1)
-        env_blocks = []
-        for block in blocks:
-            env_blocks.append(np.abs(fast_hilbert(block)))
-
-        env_rowsplits.append(np.concatenate(env_blocks, axis=1))
-    env = np.concatenate(env_rowsplits, axis=0)
-
-    # decimate first with five
-    decimated = decimate(env, 5)
-    # and then the rest
-    factor = int(((sampling_rate_raw / 5.0) / sampling_rate_hilbert))
-    decimated = decimate(decimated, factor)
-    return decimated
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--raw')
     parser.add_argument('--empty', nargs='+')
     parser.add_argument('--save_path')
     parser.add_argument('--tasks')
-    parser.add_argument('--method')
     parser.add_argument('--band')
     parser.add_argument('--compute_stc')
-    parser.add_argument('--normalize')
     parser.add_argument('--mne_method')
     parser.add_argument('--depth')
     parser.add_argument('--spacing')
@@ -101,25 +71,14 @@ if __name__ == '__main__':
     if cli_args.compute_stc:
         compute_stc = True if cli_args.compute_stc == 'true' else False
 
-    pointwise_normalization = False
-    if cli_args.normalize:
-        pointwise_normalization = True if cli_args.normalize == 'true' else False
-
     # band = (17, 25)
     band = (7, 14)
     if cli_args.band:
         band = (int(cli_args.band.split()[0]), int(cli_args.band.split()[1]))
 
-    # computation_method = 'hilbert'
-    computation_method = 'psd'
-    if cli_args.method:
-        computation_method = cli_args.method
-
     tasks = ('mind', 'plan')
     if cli_args.tasks:
         tasks = cli_args.tasks.split()[0], cli_args.tasks.split()[1]
-
-    sampling_rate_hilbert = 1.0
 
     if compute_stc:
         # process similarly to input data 
@@ -177,115 +136,149 @@ if __name__ == '__main__':
                        if idx not in mne.pick_types(raw.info, meg=True)])
 
 
-    if compute_stc:
-        stc = create_vol_stc(
-            raw=raw, 
-            trans=trans, 
-            subject=subject, 
-            noise_cov=noise_cov, 
-            spacing=vol_spacing,
-            mne_method=mne_method,
-            mne_depth=mne_depth,
-            subjects_dir=subjects_dir) 
+    # if compute_stc:
+        # stc = create_vol_stc(
+        #     raw=raw, 
+        #     trans=trans, 
+        #     subject=subject, 
+        #     noise_cov=noise_cov, 
+        #     spacing=vol_spacing,
+        #     mne_method=mne_method,
+        #     mne_depth=mne_depth,
+        #     subjects_dir=subjects_dir) 
 
-        vertices = stc.vertices[0]
+        # vertices = stc.vertices[0]
 
     task_data = {}
+    task_data_psds = {}
 
-    if computation_method == 'psd':
-        print("Prepare using PSD..")
+    print("Prepare using PSD..")
 
-        if pointwise_normalization:
-            all_blocks = []
-            for key, ivals in intervals.items():
-                for ival in ivals:
-                    start = int(ival[0]*raw.info['sfreq'])
-                    end = int(ival[1]*raw.info['sfreq'])
-                    if compute_stc:
-                        all_blocks.append(stc.data[:, start:end])
-                    else:
-                        all_blocks.append(raw._data[:, start:end])
+    for key, ivals in intervals.items():
+        task_blocks = []
+        for ival in ivals:
+            start = int(ival[0]*raw.info['sfreq'])
+            end = int(ival[1]*raw.info['sfreq'])
 
-            concatenated = np.concatenate(all_blocks, axis=1)
+            task_blocks.append(raw._data[:, start:end])
+        
+        concatenated = np.concatenate(task_blocks, axis=1)
 
+        if compute_stc:
+            bem = os.path.join(subjects_dir, subject, 'bem',
+                               subject+'-inner_skull-bem-sol.fif')
+            src_fname = os.path.join(subjects_dir, subject, 'bem',
+                                     subject + '-vol-' + vol_spacing + '-src.fif')
+            src = mne.source_space.read_source_spaces(src_fname)
+
+            print("Creating forward solution..")
+            fwd = mne.make_forward_solution(
+                info=raw.info,
+                trans=trans,
+                src=src,
+                bem=bem,
+                meg=True,
+                eeg=False,
+                verbose='warning')
+
+            print("Creating inverse operator..")
+            inv = mne.minimum_norm.make_inverse_operator(
+                info=raw.info,
+                forward=fwd,
+                noise_cov=noise_cov,
+                depth=mne_depth,
+                fixed=False,
+                verbose='warning')
+
+            raw_array = mne.io.RawArray(concatenated, raw.info, first_samp=raw.first_samp, copy='auto')
+
+            stc_psd = mne.minimum_norm.compute_source_psd(
+                raw_array, inv, method='dSPM', n_fft=int(raw.info['sfreq']*4), pick_ori=None, dB=False)
+
+            freqs = stc_psd.times
+            psd = stc_psd.data
+            vertices = stc_psd.vertices[0]
+
+            freqs_idxs = np.where((freqs >= band[0]) & (freqs <= band[1]))[0]
+
+            task_data_psds[key] = psd
+            task_data[key] = np.mean(psd[:, freqs_idxs], axis=1)
+
+        else:
+            
             psd, freqs = mne.time_frequency.psd_array_welch(
                 concatenated, 
                 sfreq=raw.info['sfreq'],
+                n_overlap=int(raw.info['sfreq']*2 / 2),
                 n_fft=int(raw.info['sfreq']*2))
 
             freqs_idxs = np.where((freqs >= band[0]) & (freqs <= band[1]))[0]
 
-            normalization_data = np.mean(psd[:, freqs_idxs], axis=1)
-
-        for key, ivals in intervals.items():
-            task_blocks = []
-            for ival in ivals:
-                start = int(ival[0]*raw.info['sfreq'])
-                end = int(ival[1]*raw.info['sfreq'])
-                if compute_stc:
-                    task_blocks.append(stc.data[:, start:end])
-                else:
-                    task_blocks.append(raw._data[:, start:end])
-
-            concatenated = np.concatenate(task_blocks, axis=1)
-
-            psd, freqs = mne.time_frequency.psd_array_welch(
-                concatenated, 
-                sfreq=raw.info['sfreq'],
-                n_fft=int(raw.info['sfreq']*2))
-
-            freqs_idxs = np.where((freqs >= band[0]) & (freqs <= band[1]))[0]
+            task_data_psds[key] = psd
 
             task_data[key] = np.mean(psd[:, freqs_idxs], axis=1)
 
-            if pointwise_normalization:
-                task_data[key] /= np.abs(normalization_data)
-
-    elif computation_method == 'hilbert':
-        print("Prepare using hilbert")
-        if compute_stc:
-            filtered_data = mne.filter.filter_data(
-                stc.data, raw.info['sfreq'], l_freq=band[0], h_freq=band[1])
-        else:
-            filtered_data = mne.filter.filter_data(
-                raw._data, raw.info['sfreq'], l_freq=band[0], h_freq=band[1])
-
-        data_hilbert = prepare_hilbert(
-            filtered_data, sampling_rate_raw, sampling_rate_hilbert)
-
-        if pointwise_normalization:
-            all_blocks = []
-            for key, ivals in intervals.items():
-                for ival in ivals:
-                    start = int(ival[0] * sampling_rate_hilbert)
-                    end = int(ival[1] * sampling_rate_hilbert)
-                    all_blocks.append(np.mean(data_hilbert[:, start:end], axis=1))
-            normalization_data = np.mean(all_blocks, axis=0)
-
-        for key, ivals in intervals.items():
-            task_blocks = []
-            for ival in ivals:
-                start = int(ival[0] * sampling_rate_hilbert)
-                end = int(ival[1] * sampling_rate_hilbert)
-                task_blocks.append(np.mean(data_hilbert[:, start:end], axis=1))
-
-            task_data[key] = np.mean(task_blocks, axis=0)
-            if pointwise_normalization:
-                task_data[key] /= np.abs(normalization_data)
 
     if save_path:
         activation_maps_path = os.path.join(save_path, 'activation_maps')
         contrast_maps_path = os.path.join(save_path, 'contrast_maps')
         activation_data_path = os.path.join(save_path, 'activation_data')
         contrast_data_path = os.path.join(save_path, 'contrast_data')
+        construction_path = os.path.join(save_path, 'construction')
 
         try:
             os.makedirs(activation_maps_path)
             os.makedirs(contrast_maps_path)
             os.makedirs(activation_data_path)
             os.makedirs(contrast_data_path)
+            os.makedirs(construction_path)
         except FileExistsError:
             pass
+
+    selected_idx = 3600
+    task1_label = 'FA' if tasks[0] == 'mind' else ''
+    task2_label = 'AT' if tasks[1] == 'anx' else ''
+
+    # fig, ax = plt.subplots()
+    # fig.set_size_inches(20, 10)
+
+    # ax.plot(stc.times[:200], stc.data[selected_idx][:200], zorder=1)
+
+    # for ival in intervals[tasks[0]]:
+    #     ax.axvspan(xmin=ival[0], xmax=ival[1], facecolor='blue', alpha=0.3, zorder=2)
+    # for ival in intervals[tasks[1]]:
+    #     ax.axvspan(xmin=ival[0], xmax=ival[1], facecolor='orange', alpha=0.3, zorder=2)
+
+    # from matplotlib.lines import Line2D
+    # lines = [
+    #     Line2D([0], [0], color='blue', lw=10),
+    #     Line2D([0], [0], color='orange', lw=10)
+    # ]
+
+    # ax.legend(lines, [task1_label, task2_label])
+
+    # ax.set_ylim(0, 1.5*np.max(stc.data))
+
+    # ax.set_xlabel('Time (s)')
+    # ax.set_ylabel('Noise-normalized MNE current (AU)')
+    # if save_path:
+    #     fig.savefig(os.path.join(construction_path, 'series' + str(selected_idx).zfill(4) + '.png'),
+    #                 dpi=100)
+
+    fig, ax = plt.subplots()
+    fig.set_size_inches(20, 10)
+
+    ax.plot(freqs[1:], task_data_psds[tasks[0]][selected_idx][1:], label=task1_label,
+            color='blue')
+    ax.plot(freqs[1:], task_data_psds[tasks[1]][selected_idx][1:], label=task2_label,
+            color='orange')
+    ax.axvspan(xmin=7, xmax=14, facecolor='g', alpha=0.3)
+    ax.legend()
+    ax.set_xlabel('Frequency (Hz)')
+    ax.set_ylabel('Power (AU)')
+    if save_path:
+        fig.savefig(os.path.join(construction_path, 'spectrum' + str(selected_idx).zfill(4) + '.png'),
+                    dpi=100)
 
     # plot every state separately
     for key, data in task_data.items():

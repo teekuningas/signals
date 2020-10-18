@@ -83,9 +83,10 @@ if __name__ == '__main__':
     def name_from_fname(fname):
         return fname.split('/')[-1].split('_')[1]
     # behav_vars = ['BDI', 'BIS', 'BasTotal']
-    # behav_vars = ['BAI', 'BIS']
     # behav_vars = ['BIS']
     behav_vars = ['BDI', 'BAI', 'BIS', 'BasTotal']
+    # behav_vars = ['BAI', 'BIS']
+    # behav_vars = ['BIS']
 
     # # fdmsa
     # def name_from_fname(fname):
@@ -168,6 +169,8 @@ if __name__ == '__main__':
 
     questionnaire = pd.DataFrame(questionnaire, columns=header)
 
+    import pdb; pdb.set_trace()
+
     pretransform = True
     n_perm = 200
     random_state = 10
@@ -177,8 +180,8 @@ if __name__ == '__main__':
 
     n_cca_components = 2
 
-    use_bands = ['alpha', 'beta']
-    # use_bands = ['beta']
+    # use_bands = ['alpha', 'beta']
+    use_bands = ['alpha']
 
     behav_data = []
     for name in names:
@@ -188,6 +191,8 @@ if __name__ == '__main__':
         behav_data.append(row)
 
     behav_data = np.array(behav_data)
+
+    untransformed_behav_data = np.copy(behav_data)
 
     if pretransform:
         print("Pretransforming non-normal variables")
@@ -257,13 +262,15 @@ if __name__ == '__main__':
 
     penalty_behav_ratio=1.0
     # behav_penalty_grid = np.linspace(0, 0.05, 21)
-    behav_penalty_grid = np.array([0.025])
     # behav_penalty_grid = np.array([0.0])
+    # behav_penalty_grid = np.array([0.025])
+    behav_penalty_grid = np.array([0.0])
     penalty_behav = np.mean(behav_penalty_grid)
 
     penalty_contrast_ratio = 0.0
     # contrast_penalty_grid = np.linspace(0, 7, 3)
-    contrast_penalty_grid = np.linspace(0, 8, 41)
+    # contrast_penalty_grid = np.linspace(0, 8, 41)
+    contrast_penalty_grid = np.linspace(0, 1, 11)
     penalty_contrast = np.mean(contrast_penalty_grid)
 
     # compute weights with guess params
@@ -553,14 +560,15 @@ if __name__ == '__main__':
 
             ax_bands = {}
             for band_idx, band_name in enumerate(use_bands):
-                ax_bands[band_name] = plt.subplot2grid((len(use_bands)*3 + 3 + 2, 8), (band_idx*3, 0), rowspan=2, colspan=7)
+                ax_bands[band_name] = plt.subplot2grid((len(use_bands)*5 + 5 + 4, 8), (band_idx*5, 0), rowspan=4, colspan=7)
 
-            ax_cbar = plt.subplot2grid((len(use_bands)*3 + 3 + 2, 8), (0, 7), rowspan=5, colspan=1)
+            ax_cbar = plt.subplot2grid((len(use_bands)*5 + 5 + 4, 8), (0, 7), rowspan=len(use_bands)*5-1, colspan=1)
 
-            ax_behav = plt.subplot2grid((len(use_bands)*3 + 3 + 2, 8), (len(use_bands)*3, 0), rowspan=2, colspan=7)
-            ax_reg = plt.subplot2grid((len(use_bands)*3 + 3 + 2, 8), (len(use_bands)*3 + 3, 0), rowspan=2, colspan=7)
-            fig.set_size_inches(40, 30 + 20*len(use_bands))
-            fig_dpi = 30
+            ax_behav = plt.subplot2grid((len(use_bands)*5 + 5 + 4, 8), (len(use_bands)*5, 0), rowspan=4, colspan=7)
+            ax_reg = plt.subplot2grid((len(use_bands)*5 + 5 + 4, 8), (len(use_bands)*5 + 5, 0), rowspan=4, colspan=7)
+
+            fig.set_size_inches(40, 25 + 20*len(use_bands))
+            fig_dpi = 15
 
             vmax = 0
             vmin = 0
@@ -587,14 +595,15 @@ if __name__ == '__main__':
                 if len(contrast_weights[band_name]) > 500:
                     vertices = np.array([int(vx) for vx in vertex_list[0]])
                     plot_vol_stc_brainmap(contrast_weights[band_name], vertices, vol_spacing, subjects_dir, ax_bands[band_name], 
-                                          cap=0.95, vmax=vmax_abs)
+                                          cap=0.0, vmax=vmax_abs)
                 else:
                     factor = np.max(np.abs(contrast_weights[band_name])) / vmax_abs
                     plot_sensor_topomap(contrast_weights[band_name], raw.info, ax_bands[band_name], factor=factor)
 
                 ax_bands[band_name].set_title(band_name)
 
-            ax_behav.bar(behav_vars, behav_weights, align='center', alpha=0.5)
+            ax_behav.bar(behav_vars, behav_weights, align='center', alpha=1.0, width=0.5)
+            ax_behav.axhline(0)
             ax_behav.set_ylabel('Weight (AU)')
             ax_behav.yaxis.label.set_size(80)
             ax_behav.yaxis.set_tick_params(labelsize=60)
@@ -602,7 +611,7 @@ if __name__ == '__main__':
             ax_behav.xaxis.label.set_size(80)
             ax_behav.xaxis.set_tick_params(labelsize=60)
 
-            ax_reg.scatter(X, Y, s=120)
+            ax_reg.scatter(X, Y, s=300)
 
             left = np.min(X) - np.max(np.abs(X))*0.1
             right = np.max(X) + np.max(np.abs(X))*0.1
@@ -642,6 +651,77 @@ if __name__ == '__main__':
                          str(round(penalty_contrast, 4)).replace('.', '') +
                          '.png')
                 fig.savefig(os.path.join(path, fname), dpi=fig_dpi)
+
+            for behav_idx, behav_var in enumerate(behav_vars):
+                for band_idx, band in enumerate(use_bands):
+
+                    fig = plt.figure()
+
+                    ax_scatter = plt.subplot2grid((5, 18), (1, 0), rowspan=3, colspan=7)
+                    ax_brain = plt.subplot2grid((5, 18), (1, 8), rowspan=3, colspan=8)
+                    ax_cbar = plt.subplot2grid((5, 18), (1, 17), rowspan=3, colspan=1)
+
+                    fig.set_size_inches(80, 20)
+                    fig_dpi = 15
+
+                    # scatter_Y = untransformed_behav_data[:, behav_idx]
+                    scatter_Y = behav_wh[:, behav_idx]
+                    scatter_X = X.copy()
+                    brain_weights = contrast_weights[band].copy()
+
+                    cbar_vmin = vmin
+                    cbar_vmax = vmax
+
+                    behav_weights = behav_weights.copy()
+                    if behav_weights[behav_idx] < 0:
+                        scatter_X = -scatter_X
+                        brain_weights = -brain_weights
+
+                        cbar_vmin = -vmax
+                        cbar_vmax = -vmin
+
+                    ax_scatter.scatter(scatter_X, scatter_Y, c='blue', s=500)
+
+                    corrcoef = np.corrcoef(scatter_X, scatter_Y)[0, 1]
+                    fig.suptitle('Corrcoef: ' + str(corrcoef))
+                    
+                    m, b = np.polyfit(scatter_X, scatter_Y, 1)
+                    ax_scatter.plot(scatter_X, m*scatter_X + b)
+
+                    ax_scatter.set_ylabel(behav_var + ' score (AU)')
+                    # ax_scatter.set_ylabel('Behavioral correlate (AU)')
+                    ax_scatter.yaxis.label.set_size(80)
+                    ax_scatter.yaxis.set_tick_params(labelsize=60)
+                    ax_scatter.yaxis.label.set_size(80)
+
+                    ax_scatter.set_xlabel('Brain correlate (AU)')
+                    ax_scatter.xaxis.label.set_size(80)
+                    ax_scatter.xaxis.set_tick_params(labelsize=60)
+                    ax_scatter.xaxis.label.set_size(80)
+
+                    plot_vol_stc_brainmap(brain_weights, vertices, vol_spacing, 
+                                          subjects_dir, ax_brain,
+                                          cap=0.0, vmax=vmax_abs)
+
+                    cmap = mpl.cm.RdBu_r
+                    norm = MidpointNormalize(cbar_vmin, cbar_vmax)
+                    cb = mpl.colorbar.ColorbarBase(ax_cbar, cmap=cmap,
+                        norm=norm,
+                        orientation='vertical')
+                    cb.set_label('Weight (AU)', labelpad=10)
+
+                    if save_path:
+                        path = os.path.join(save_path, 'individual_contributions')
+                        if not os.path.exists(path):
+                            os.makedirs(path)
+                        fname = ('cca_' + str(cli_args.identifier) + '_' + 
+                                 str(comp_idx+1).zfill(2) + '_' +
+                                 str(round(penalty_behav, 4)).replace('.', '') + '_' +
+                                 str(round(penalty_contrast, 4)).replace('.', '') + '_' + 
+                                 str(band) + '_' +
+                                 str(behav_var) +
+                                 '.png')
+                        fig.savefig(os.path.join(path, fname), dpi=fig_dpi)
 
     print("Done.")
 

@@ -123,9 +123,7 @@ if __name__ == '__main__':
     raw.drop_channels([ch for idx, ch in enumerate(raw.info['ch_names'])
                        if idx not in mne.pick_types(raw.info, meg=True)])
 
-    # weights = np.cbrt(np.abs(np.mean(norm_data, axis=0)))
-    weights = np.abs(np.mean(norm_data, axis=0))
-    # weights = np.ones(data.shape[1])
+    weights = np.cbrt(np.abs(np.mean(norm_data, axis=0)))
     weights = weights / np.max(weights)
 
     meanmap = np.mean(data, axis=0)
@@ -154,11 +152,11 @@ if __name__ == '__main__':
 
     statmap = statmap * weights
 
-    if len(meanmap) > 500:
-        plot_labeled_data(statmap, cli_args.identifier + '_stat_labels.png')
+    # if len(meanmap) > 500:
+    #     plot_labeled_data(statmap, cli_args.identifier + '_stat_labels.png')
 
     # crit_val = scipy.stats.t.ppf(0.995, df=len(statmap))
-    crit_val = np.abs(np.percentile(np.abs(statmap), 95.0))
+    crit_val = np.percentile(np.abs(statmap), 97.5)
     print("Critical value: " + str(crit_val))
 
     def stat_fun(x):
@@ -182,6 +180,11 @@ if __name__ == '__main__':
 
     clusters = []
     for cluster_idx in range(len(results[2])):
+
+        pvalue = results[2][cluster_idx]
+        if pvalue > 0.05:
+            continue
+
         # add jitter to avoid overlay bug
         cluster_map = np.array([np.abs(np.random.normal(scale=0.001)) for _ in 
                                 range(data.shape[1])])
@@ -192,13 +195,11 @@ if __name__ == '__main__':
         if len(meanmap) > 500:
             plot_labeled_data(cluster_map, cli_args.identifier + '_cluster_' + str(cluster_idx+1) + '_labels.png')
 
-        pvalue = results[2][cluster_idx]
-
         clusters.append((pvalue, cluster_map))
 
     # hack to get same-sized images..
-    if len(clusters) == 1:
-        clusters = [clusters[0], clusters[0]]
+    # if len(clusters) == 1:
+    #     clusters = [clusters[0], clusters[0]]
 
     n_clusters = len(clusters)
 
@@ -206,35 +207,38 @@ if __name__ == '__main__':
     # to get high accuracy vol plots, 
     # set inches high and dpi low.
     fig = plt.figure()
-    fig.suptitle(cli_args.identifier, fontsize=50.0)
+    # fig.suptitle(cli_args.identifier, fontsize=50.0)
 
-    plt.rcParams.update({'font.size': 25.0})
-    fig.set_size_inches(20, 40)
-    fig_dpi = 100
+    plt.rcParams.update({'font.size': 50.0})
+    fig.set_size_inches(70, 10)
+    fig_dpi = 20
 
-    ax_mean = plt.subplot2grid((2*(2 + n_clusters), 20), (0, 0), colspan=19)
-    ax_mean_cbar = plt.subplot2grid((2*(2 + n_clusters), 20), (0, 19))
-    ax_stats = plt.subplot2grid((2*(2 + n_clusters), 20), (2, 0), colspan=19)
-    ax_stats_cbar = plt.subplot2grid((2*(2 + n_clusters), 20), (2, 19))
+    # ax_mean = plt.subplot2grid((2*(2 + n_clusters), 20), (0, 0), colspan=19)
+    # ax_mean_cbar = plt.subplot2grid((2*(2 + n_clusters), 20), (0, 19))
+    # ax_stats = plt.subplot2grid((2*(2 + n_clusters), 20), (2, 0), colspan=19)
+    # ax_stats_cbar = plt.subplot2grid((2*(2 + n_clusters), 20), (2, 19))
+
+    ax_mean = plt.subplot2grid((5, 60), (0, 0), rowspan=5, colspan=18)
+    ax_mean_cbar = plt.subplot2grid((5, 60), (1, 19), rowspan=3, colspan=1)
 
     ax_clusters = []
     for cluster_idx in range(n_clusters):
         ax_clusters.append(
-            plt.subplot2grid((2*(2 + n_clusters), 20), (4 + cluster_idx * 2, 0), colspan=19))
+            plt.subplot2grid((5, 60), (0, 24 + cluster_idx*18), rowspan=5, colspan=18))
 
 
     if len(meanmap) > 500:
-        plot_vol_stc_brainmap(statmap, vertices, vol_spacing, subjects_dir,
-                          ax_stats, cap=0.9)
+        # plot_vol_stc_brainmap(statmap, vertices, vol_spacing, subjects_dir,
+        #                   ax_stats, cap=0.9)
         plot_vol_stc_brainmap(meanmap, vertices, vol_spacing, subjects_dir,
-                          ax_mean, cap=0.9)
+                          ax_mean, cap=0.0)
         for cluster_idx in range(n_clusters):
             plot_vol_stc_brainmap(clusters[cluster_idx][1], vertices,
                                   vol_spacing, subjects_dir, ax_clusters[cluster_idx],
                                   cmap='PiYG', cap=0.0)
 
     else:
-        plot_sensor_topomap(statmap, raw.info, ax_stats)
+        # plot_sensor_topomap(statmap, raw.info, ax_stats)
         plot_sensor_topomap(meanmap, raw.info, ax_mean)
 
         for cluster_idx in range(n_clusters):
@@ -243,23 +247,23 @@ if __name__ == '__main__':
 
     cmap = mpl.cm.RdBu_r
 
-    norm = MidpointNormalize(np.min(statmap), np.max(statmap))
-    cb = mpl.colorbar.ColorbarBase(ax_stats_cbar, cmap=cmap,
-        norm=norm,
-        orientation='vertical')
-    cb.set_label('Normalized t-value', labelpad=10)
+    # norm = MidpointNormalize(np.min(statmap), np.max(statmap))
+    # cb = mpl.colorbar.ColorbarBase(ax_stats_cbar, cmap=cmap,
+    #     norm=norm,
+    #     orientation='vertical')
+    # cb.set_label('Normalized t-value', labelpad=10)
 
     norm = MidpointNormalize(np.min(meanmap), np.max(meanmap))
     cb = mpl.colorbar.ColorbarBase(ax_mean_cbar, cmap=cmap,
         norm=norm,
         orientation='vertical')
-    cb.set_label('MNE current power', labelpad=10)
+    cb.set_label('Power (AU)', labelpad=12)
 
-    ax_mean.set_title('Average over participant-specific spatial task-contrast maps')
-    ax_stats.set_title('T-value map')
+    # ax_mean.set_title('Average')
+    # ax_stats.set_title('T-value map')
 
     for idx, ax in enumerate(ax_clusters):
-        title = 'Cluster {0} (p-value {1:.2g})'.format(idx+1, clusters[idx][0])
+        title = 'Cluster (p-value {1:.2g})'.format(idx+1, clusters[idx][0])
         ax.set_title(title)
 
     if save_path:
