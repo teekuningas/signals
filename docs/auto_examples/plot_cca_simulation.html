@@ -1,0 +1,668 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contrast-CCA on simulated MEG data &#8212; signals  documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/gallery.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/gallery-binder.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/gallery-dataframe.css" />
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-examples-plot-cca-simulation-py"><span class="std std-ref">here</span></a>     to download the full example code</p>
+</div>
+<div class="sphx-glr-example-title section" id="contrast-cca-on-simulated-meg-data">
+<span id="sphx-glr-auto-examples-plot-cca-simulation-py"></span><h1>Contrast-CCA on simulated MEG data<a class="headerlink" href="#contrast-cca-on-simulated-meg-data" title="Permalink to this headline">¶</a></h1>
+<p>This example shows how to simulate MEG data with individual differences and then extract the associations with CCA.</p>
+<p>Import necessary libraries.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">import</span> <span class="nn">mne</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">import</span> <span class="nn">scipy.stats</span>
+<span class="kn">from</span> <span class="nn">scipy.linalg</span> <span class="kn">import</span> <span class="n">cholesky</span>
+
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">matplotlib</span> <span class="k">as</span> <span class="nn">mpl</span>
+
+<span class="kn">from</span> <span class="nn">sparsecca</span> <span class="kn">import</span> <span class="n">cca_ipls</span>
+<span class="kn">from</span> <span class="nn">sklearn.decomposition</span> <span class="kn">import</span> <span class="n">PCA</span>
+
+<span class="c1"># Suppress warnings and set plotting and logging properties</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;font.size&#39;</span><span class="p">:</span> <span class="mf">10.0</span><span class="p">})</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;mne&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span><span class="p">)</span>
+<span class="n">mne</span><span class="o">.</span><span class="n">viz</span><span class="o">.</span><span class="n">set_3d_backend</span><span class="p">(</span><span class="s1">&#39;pyvista&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Set up paths.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data_path</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">sample</span><span class="o">.</span><span class="n">data_path</span><span class="p">()</span>
+<span class="n">subjects_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;subjects&#39;</span><span class="p">)</span>
+<span class="n">subject</span> <span class="o">=</span> <span class="s1">&#39;sample&#39;</span>
+
+<span class="n">raw_fname</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;MEG&#39;</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="s1">&#39;sample_audvis_raw.fif&#39;</span><span class="p">)</span>
+<span class="n">fwd_fname</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;MEG&#39;</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="s1">&#39;sample_audvis-meg-oct-6-fwd.fif&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Read raw, drop eeg data and resample.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">raw</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Raw</span><span class="p">(</span><span class="n">raw_fname</span><span class="p">,</span> <span class="n">preload</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">picks</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">pick_types</span><span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">info</span><span class="p">,</span> <span class="n">meg</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">raw</span><span class="o">.</span><span class="n">drop_channels</span><span class="p">([</span><span class="n">ch_name</span> <span class="k">for</span> <span class="n">ch_idx</span><span class="p">,</span> <span class="n">ch_name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;ch_names&#39;</span><span class="p">])</span>
+                   <span class="k">if</span> <span class="n">ch_idx</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">picks</span><span class="p">])</span>
+<span class="n">raw</span><span class="o">.</span><span class="n">resample</span><span class="p">(</span><span class="mi">50</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;Raw | sample_audvis_raw.fif, 305 x 13886 (277.7 s), ~35.8 MB, data loaded&gt;
+</pre></div>
+</div>
+<p>Define some variables needed later on.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">info</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">info</span>
+<span class="n">fwd</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">read_forward_solution</span><span class="p">(</span><span class="n">fwd_fname</span><span class="p">)</span>
+<span class="n">src</span> <span class="o">=</span> <span class="n">fwd</span><span class="p">[</span><span class="s1">&#39;src&#39;</span><span class="p">]</span>
+
+<span class="n">length</span> <span class="o">=</span> <span class="mi">50</span>
+<span class="n">sfreq</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;sfreq&#39;</span><span class="p">]</span>
+<span class="n">tstep</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="n">sfreq</span>
+<span class="n">n_times</span> <span class="o">=</span> <span class="n">length</span> <span class="o">/</span> <span class="n">tstep</span>
+<span class="n">events</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]]</span>
+<span class="n">fmin</span><span class="p">,</span> <span class="n">fmax</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">20</span>
+<span class="n">inv_method</span> <span class="o">=</span> <span class="s1">&#39;dSPM&#39;</span>
+<span class="n">jitter_factor</span> <span class="o">=</span> <span class="mf">0.01</span>
+<span class="n">n_perm</span> <span class="o">=</span> <span class="mi">500</span>
+
+<span class="c1"># how many canonical correlations are computed</span>
+<span class="c1"># and to which dimension to reduce the contrast data</span>
+<span class="n">n_cca_components</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">n_contrast_components</span> <span class="o">=</span> <span class="mi">4</span>
+
+<span class="c1"># penalties for CCA, use no penalty for now</span>
+<span class="n">penalty_behav_ratio</span><span class="o">=</span><span class="mf">1.0</span>
+<span class="n">penalty_behav</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="n">penalty_contrast_ratio</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="n">penalty_contrast</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+<span class="c1"># first condition is from beginning to middle,</span>
+<span class="c1"># while second is from middle to end</span>
+<span class="n">cond_1_ival</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">length</span> <span class="o">/</span> <span class="mi">2</span>
+<span class="n">cond_2_ival</span> <span class="o">=</span> <span class="n">length</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="n">length</span>
+
+<span class="c1"># For reproducibility, fix the random state</span>
+<span class="n">rand_state</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">RandomState</span><span class="p">(</span><span class="mi">23</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Define function to get extended label spanning vertices around a label center.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">get_label</span><span class="p">(</span><span class="n">regexp</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; get label by regexp</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">orig_label</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">read_labels_from_annot</span><span class="p">(</span>
+        <span class="n">subject</span><span class="p">,</span> <span class="n">regexp</span><span class="o">=</span><span class="n">regexp</span><span class="p">,</span> <span class="n">subjects_dir</span><span class="o">=</span><span class="n">subjects_dir</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">center</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">label</span><span class="o">.</span><span class="n">select_sources</span><span class="p">(</span>
+        <span class="n">subject</span><span class="p">,</span> <span class="n">orig_label</span><span class="p">,</span> <span class="n">location</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">subjects_dir</span><span class="o">=</span><span class="n">subjects_dir</span><span class="p">)</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">label</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">label</span><span class="o">.</span><span class="n">select_sources</span><span class="p">(</span>
+        <span class="n">subject</span><span class="p">,</span> <span class="n">orig_label</span><span class="p">,</span> <span class="n">location</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span>
+        <span class="n">subjects_dir</span><span class="o">=</span><span class="n">subjects_dir</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">label</span><span class="p">,</span> <span class="n">center</span>
+</pre></div>
+</div>
+<p>Use the function to get labels for parietal, precentral and temporal areas in both hemis.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">label_rh_par</span><span class="p">,</span> <span class="n">center_rh_par</span> <span class="o">=</span> <span class="n">get_label</span><span class="p">(</span><span class="s1">&#39;superiorparietal-rh&#39;</span><span class="p">)</span>
+<span class="n">label_lh_par</span><span class="p">,</span> <span class="n">center_lh_par</span> <span class="o">=</span> <span class="n">get_label</span><span class="p">(</span><span class="s1">&#39;superiorparietal-lh&#39;</span><span class="p">)</span>
+<span class="n">label_rh_prec</span><span class="p">,</span> <span class="n">center_rh_prec</span> <span class="o">=</span> <span class="n">get_label</span><span class="p">(</span><span class="s1">&#39;precentral-rh&#39;</span><span class="p">)</span>
+<span class="n">label_lh_prec</span><span class="p">,</span> <span class="n">center_lh_prec</span> <span class="o">=</span> <span class="n">get_label</span><span class="p">(</span><span class="s1">&#39;precentral-lh&#39;</span><span class="p">)</span>
+<span class="n">label_rh_temp</span><span class="p">,</span> <span class="n">center_rh_temp</span> <span class="o">=</span> <span class="n">get_label</span><span class="p">(</span><span class="s1">&#39;superiortemporal-rh&#39;</span><span class="p">)</span>
+<span class="n">label_lh_temp</span><span class="p">,</span> <span class="n">center_lh_temp</span> <span class="o">=</span> <span class="n">get_label</span><span class="p">(</span><span class="s1">&#39;superiortemporal-lh&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Define function to simulate raw data.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">simulate</span><span class="p">(</span><span class="n">n_subjects</span><span class="p">,</span> <span class="n">cond_1_deps</span><span class="p">,</span> <span class="n">cond_2_deps</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Generates raw data with alpha oscillations from two resting-state like conditions</span>
+<span class="sd">    around cortex modulated by behavioral variables</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># make diagonal noise covariance and use it and fwd to make inverse operator</span>
+    <span class="n">cov</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">make_ad_hoc_cov</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
+    <span class="n">inv</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">minimum_norm</span><span class="o">.</span><span class="n">make_inverse_operator</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="n">fwd</span><span class="p">,</span> <span class="n">cov</span><span class="p">)</span>
+
+    <span class="n">raws</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">subject_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_subjects</span><span class="p">):</span>
+
+        <span class="n">source_simulator</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">simulation</span><span class="o">.</span><span class="n">SourceSimulator</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">tstep</span><span class="o">=</span><span class="n">tstep</span><span class="p">)</span>
+
+        <span class="c1"># let every subject have some subject-specific base activity</span>
+        <span class="n">base_amp</span> <span class="o">=</span> <span class="mf">100e-10</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">rand_state</span><span class="o">.</span><span class="n">randn</span><span class="p">()</span><span class="o">/</span><span class="mi">10</span><span class="p">)</span>
+
+        <span class="c1"># define helper functions to create alpha oscillations</span>
+
+        <span class="k">def</span> <span class="nf">alpha_wave</span><span class="p">(</span><span class="n">base_freq</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">phase</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot; creates alpha wave with frequency and phase jitter &quot;&quot;&quot;</span>
+            <span class="n">jitter_factor</span> <span class="o">=</span> <span class="mf">0.05</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span>
+                <span class="p">(</span><span class="n">base_freq</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">length</span><span class="p">)</span> <span class="o">*</span> <span class="n">tstep</span> <span class="o">+</span>
+                 <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">jitter_factor</span> <span class="o">*</span> <span class="n">rand_state</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">length</span><span class="p">))))</span> <span class="o">+</span> <span class="n">phase</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">get_modulator</span><span class="p">():</span>
+            <span class="sd">&quot;&quot;&quot; creates a boxcar-like random carrier wave &quot;&quot;&quot;</span>
+            <span class="n">modulator</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array_split</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">n_times</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)),</span> <span class="nb">int</span><span class="p">(</span><span class="n">n_times</span><span class="o">/</span><span class="mi">20</span><span class="p">))</span> <span class="o">+</span>
+                         <span class="n">np</span><span class="o">.</span><span class="n">array_split</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">n_times</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)),</span> <span class="nb">int</span><span class="p">(</span><span class="n">n_times</span><span class="o">/</span><span class="mi">20</span><span class="p">)))</span>
+            <span class="n">rand_state</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">modulator</span><span class="p">)</span>
+            <span class="n">modulator</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">modulator</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">modulator</span>
+
+        <span class="c1"># Add some base alpha activity to superior temporal areas, where both conditions</span>
+        <span class="c1"># behave similarly</span>
+        <span class="n">source_signal</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">n_times</span><span class="p">))</span> <span class="o">*</span> <span class="n">alpha_wave</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="n">n_times</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="n">base_amp</span>
+        <span class="n">source_simulator</span><span class="o">.</span><span class="n">add_data</span><span class="p">(</span><span class="n">label_lh_temp</span><span class="p">,</span> <span class="n">source_signal</span><span class="o">*</span><span class="n">get_modulator</span><span class="p">(),</span> <span class="n">events</span><span class="p">)</span>
+        <span class="n">source_simulator</span><span class="o">.</span><span class="n">add_data</span><span class="p">(</span><span class="n">label_rh_temp</span><span class="p">,</span> <span class="n">source_signal</span><span class="o">*</span><span class="n">get_modulator</span><span class="p">(),</span> <span class="n">events</span><span class="p">)</span>
+
+        <span class="c1"># Add activity that depends on the behav variables</span>
+        <span class="n">cond_1_factor</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">cond_1_deps</span><span class="p">[</span><span class="n">subject_idx</span><span class="p">]))</span>
+        <span class="n">cond_2_factor</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">cond_2_deps</span><span class="p">[</span><span class="n">subject_idx</span><span class="p">]))</span>
+        <span class="n">modulator</span> <span class="o">=</span> <span class="n">get_modulator</span><span class="p">()</span>
+        <span class="n">cond_1_signal</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">n_times</span><span class="o">/</span><span class="mi">2</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">n_times</span><span class="o">/</span><span class="mi">2</span><span class="p">))])</span>
+        <span class="n">cond_1_signal</span> <span class="o">=</span> <span class="n">cond_1_signal</span> <span class="o">*</span> <span class="n">alpha_wave</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="n">n_times</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="n">base_amp</span> <span class="o">*</span> <span class="n">cond_1_factor</span>
+        <span class="n">cond_2_signal</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">n_times</span><span class="o">/</span><span class="mi">2</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">n_times</span><span class="o">/</span><span class="mi">2</span><span class="p">))])</span>
+        <span class="n">cond_2_signal</span> <span class="o">=</span> <span class="n">cond_2_signal</span> <span class="o">*</span> <span class="n">alpha_wave</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="n">n_times</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="n">base_amp</span> <span class="o">*</span> <span class="n">cond_2_factor</span>
+        <span class="n">source_signal</span> <span class="o">=</span> <span class="n">cond_1_signal</span> <span class="o">+</span> <span class="n">cond_2_signal</span>
+        <span class="n">source_simulator</span><span class="o">.</span><span class="n">add_data</span><span class="p">(</span><span class="n">label_lh_par</span><span class="p">,</span> <span class="n">source_signal</span><span class="o">*</span><span class="n">modulator</span><span class="p">,</span> <span class="n">events</span><span class="p">)</span>
+        <span class="n">source_simulator</span><span class="o">.</span><span class="n">add_data</span><span class="p">(</span><span class="n">label_rh_par</span><span class="p">,</span> <span class="n">source_signal</span><span class="o">*</span><span class="n">modulator</span><span class="p">,</span> <span class="n">events</span><span class="p">)</span>
+
+        <span class="c1"># Add activity that is independent of the behavioral variables but which differs</span>
+        <span class="c1"># between the first and second condition.</span>
+        <span class="n">cond_1_factor</span><span class="p">,</span> <span class="n">cond_2_factor</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> <span class="mf">0.5</span>
+        <span class="n">modulator</span> <span class="o">=</span> <span class="n">get_modulator</span><span class="p">()</span>
+        <span class="n">cond_1_signal</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">n_times</span><span class="o">/</span><span class="mi">2</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">n_times</span><span class="o">/</span><span class="mi">2</span><span class="p">))])</span>
+        <span class="n">cond_1_signal</span> <span class="o">=</span> <span class="n">cond_1_signal</span> <span class="o">*</span> <span class="n">alpha_wave</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="n">n_times</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="n">base_amp</span> <span class="o">*</span> <span class="n">cond_1_factor</span>
+        <span class="n">cond_2_signal</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">n_times</span><span class="o">/</span><span class="mi">2</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">n_times</span><span class="o">/</span><span class="mi">2</span><span class="p">))])</span>
+        <span class="n">cond_2_signal</span> <span class="o">=</span> <span class="n">cond_2_signal</span> <span class="o">*</span> <span class="n">alpha_wave</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="n">n_times</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="n">base_amp</span> <span class="o">*</span> <span class="n">cond_2_factor</span>
+        <span class="n">source_signal</span> <span class="o">=</span> <span class="n">cond_1_signal</span> <span class="o">+</span> <span class="n">cond_2_signal</span>
+        <span class="n">source_simulator</span><span class="o">.</span><span class="n">add_data</span><span class="p">(</span><span class="n">label_lh_prec</span><span class="p">,</span> <span class="n">source_signal</span><span class="o">*</span><span class="n">modulator</span><span class="p">,</span> <span class="n">events</span><span class="p">)</span>
+        <span class="n">source_simulator</span><span class="o">.</span><span class="n">add_data</span><span class="p">(</span><span class="n">label_rh_prec</span><span class="p">,</span> <span class="n">source_signal</span><span class="o">*</span><span class="n">modulator</span><span class="p">,</span> <span class="n">events</span><span class="p">)</span>
+
+        <span class="c1"># Simulate these sources to create raw object</span>
+        <span class="n">raw</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">simulation</span><span class="o">.</span><span class="n">simulate_raw</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="n">source_simulator</span><span class="p">,</span> <span class="n">forward</span><span class="o">=</span><span class="n">fwd</span><span class="p">)</span>
+
+        <span class="c1"># Add some 1/f noise to sensors with spatial structure induced by cov.</span>
+        <span class="n">mne</span><span class="o">.</span><span class="n">simulation</span><span class="o">.</span><span class="n">add_noise</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">iir_filter</span><span class="o">=</span><span class="p">[</span><span class="mf">0.2</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.04</span><span class="p">],</span> <span class="n">random_state</span><span class="o">=</span><span class="n">rand_state</span><span class="p">)</span>
+
+        <span class="n">raws</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">raws</span><span class="p">,</span> <span class="n">behav_data</span><span class="p">,</span> <span class="n">inv</span>
+</pre></div>
+</div>
+<p>Now that there is a simulation function, simulate data.
+The simulation sets up three areas of activation (temporal, parietal and precentral),
+and two different conditions (0s to 25s, and 25s to 50s).
+In to temporal areas, we put an oscillatory dipole of 10Hz that oscillates
+on some base amplitude, which varies subject by subject, and does not depend on the condition.
+To precentral areas we put oscillatory dipole of 10Hz, that has amplitude of 2 * base amplitude
+in the first condition and 0.5 * base amplitude in the second condition, giving a “constant”
+difference between the conditions.
+To parietal areas we put oscillatory dipole of 10Hz, which can be set to vary with respect to
+behavioral variables. Here we make it so that the first condition does not vary with the
+behavioral variables, but the second condition is very correlated with the first
+behavioral variable.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">n_subjects</span> <span class="o">=</span> <span class="mi">10</span>
+
+<span class="c1"># Generate behav data from multivariate normal distribution</span>
+<span class="n">behav_mean</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+<span class="n">behav_cov</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]]</span>
+<span class="n">behav_data</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_subjects</span><span class="p">):</span>
+    <span class="n">behav_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rand_state</span><span class="o">.</span><span class="n">multivariate_normal</span><span class="p">(</span><span class="n">behav_mean</span><span class="p">,</span> <span class="n">behav_cov</span><span class="p">))</span>
+<span class="n">behav_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">behav_data</span><span class="p">)</span>
+
+<span class="c1"># Make second condition positively correlated with the first behav variable</span>
+<span class="n">cond_1_deps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_subjects</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+<span class="n">cond_2_deps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">behav_data</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_subjects</span><span class="p">)])</span><span class="o">.</span><span class="n">T</span>
+
+<span class="n">raws</span><span class="p">,</span> <span class="n">behavs</span><span class="p">,</span> <span class="n">inv</span> <span class="o">=</span> <span class="n">simulate</span><span class="p">(</span><span class="n">n_subjects</span><span class="p">,</span> <span class="n">cond_1_deps</span><span class="p">,</span> <span class="n">cond_2_deps</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Take a look at the first raw.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">raws</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
+</pre></div>
+</div>
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_001.png" />
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;Figure size 955x854 with 5 Axes&gt;
+</pre></div>
+</div>
+<p>Plot how the simulated data looks as a PSD averaged over channels.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="p">(</span><span class="n">ax_1</span><span class="p">,</span> <span class="n">ax_2</span><span class="p">)</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">ax_1</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Cond 1&#39;</span><span class="p">)</span>
+<span class="n">ax_2</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Cond 2&#39;</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="s1">&#39;PSDs in sensor space&#39;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">raw</span> <span class="ow">in</span> <span class="n">raws</span><span class="p">:</span>
+    <span class="n">psds</span><span class="p">,</span> <span class="n">freqs</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">time_frequency</span><span class="o">.</span><span class="n">psd_welch</span><span class="p">(</span>
+        <span class="n">raw</span><span class="p">,</span> <span class="n">fmin</span><span class="o">=</span><span class="n">fmin</span><span class="p">,</span> <span class="n">fmax</span><span class="o">=</span><span class="n">fmax</span><span class="p">,</span> <span class="n">n_fft</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">sfreq</span><span class="p">),</span>
+        <span class="n">tmin</span><span class="o">=</span><span class="n">cond_1_ival</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">tmax</span><span class="o">=</span><span class="n">cond_1_ival</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">ax_1</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">freqs</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">psds</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+
+    <span class="n">psds</span><span class="p">,</span> <span class="n">freqs</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">time_frequency</span><span class="o">.</span><span class="n">psd_welch</span><span class="p">(</span>
+        <span class="n">raw</span><span class="p">,</span> <span class="n">fmin</span><span class="o">=</span><span class="n">fmin</span><span class="p">,</span> <span class="n">fmax</span><span class="o">=</span><span class="n">fmax</span><span class="p">,</span> <span class="n">n_fft</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">sfreq</span><span class="p">),</span>
+        <span class="n">tmin</span><span class="o">=</span><span class="n">cond_2_ival</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">tmax</span><span class="o">=</span><span class="n">cond_2_ival</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">ax_2</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">freqs</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">psds</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img alt="PSDs in sensor space, Cond 1, Cond 2" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_002.png" />
+<p>Define functions for computing activation maps, on which contrast maps are based on.
+Contrast maps are spatial maps, computed by subtracting spatial
+alpha power of first condition from spatial alpha power of second condition.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">compute_activation_maps</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="n">inv</span><span class="p">):</span>
+
+    <span class="n">tmin</span><span class="p">,</span> <span class="n">tmax</span> <span class="o">=</span> <span class="n">cond_1_ival</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cond_1_ival</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">cond_1_psd</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">minimum_norm</span><span class="o">.</span><span class="n">compute_source_psd</span><span class="p">(</span>
+        <span class="n">raw</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">crop</span><span class="p">(</span><span class="n">tmin</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">tmax</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">inv</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="n">inv_method</span><span class="p">,</span>
+        <span class="n">fmin</span><span class="o">=</span><span class="n">fmin</span><span class="p">,</span> <span class="n">fmax</span><span class="o">=</span><span class="n">fmax</span><span class="p">,</span>
+        <span class="n">n_fft</span><span class="o">=</span><span class="n">sfreq</span><span class="p">,</span> <span class="n">pick_ori</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dB</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">tmin</span><span class="p">,</span> <span class="n">tmax</span> <span class="o">=</span> <span class="n">cond_2_ival</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cond_2_ival</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">cond_2_psd</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">minimum_norm</span><span class="o">.</span><span class="n">compute_source_psd</span><span class="p">(</span>
+        <span class="n">raw</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">crop</span><span class="p">(</span><span class="n">tmin</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">tmax</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">inv</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="n">inv_method</span><span class="p">,</span>
+        <span class="n">fmin</span><span class="o">=</span><span class="n">fmin</span><span class="p">,</span> <span class="n">fmax</span><span class="o">=</span><span class="n">fmax</span><span class="p">,</span>
+        <span class="n">n_fft</span><span class="o">=</span><span class="n">sfreq</span><span class="p">,</span> <span class="n">pick_ori</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dB</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">freqs</span> <span class="o">=</span> <span class="n">cond_1_psd</span><span class="o">.</span><span class="n">times</span>
+
+    <span class="c1"># compute averages over alpha frequency band in the two conditions</span>
+    <span class="n">cond_1_act</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">cond_1_psd</span><span class="o">.</span><span class="n">_data</span><span class="p">[:,</span> <span class="p">(</span><span class="n">freqs</span> <span class="o">&gt;=</span> <span class="mi">7</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">freqs</span> <span class="o">&lt;=</span> <span class="mi">13</span><span class="p">)],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">cond_2_act</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">cond_2_psd</span><span class="o">.</span><span class="n">_data</span><span class="p">[:,</span> <span class="p">(</span><span class="n">freqs</span> <span class="o">&gt;=</span> <span class="mi">7</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">freqs</span> <span class="o">&lt;=</span> <span class="mi">13</span><span class="p">)],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">vertices</span> <span class="o">=</span> <span class="n">cond_1_psd</span><span class="o">.</span><span class="n">vertices</span>
+
+    <span class="k">return</span> <span class="n">cond_1_act</span><span class="p">,</span> <span class="n">cond_2_act</span><span class="p">,</span> <span class="n">cond_1_psd</span><span class="p">,</span> <span class="n">cond_2_psd</span><span class="p">,</span> <span class="n">freqs</span><span class="p">,</span> <span class="n">vertices</span>
+</pre></div>
+</div>
+<p>Compute contrast maps using the function.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">contrast_maps</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">cond_1_psds</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">cond_2_psds</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">raw</span> <span class="ow">in</span> <span class="n">raws</span><span class="p">:</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">compute_activation_maps</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="n">inv</span><span class="p">)</span>
+    <span class="n">contrast_maps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">cond_1_psds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+    <span class="n">cond_2_psds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+    <span class="n">freqs</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>
+    <span class="n">vertices</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Plot the PSDs that the contrast maps are based on.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="p">(</span><span class="n">ax_1</span><span class="p">,</span> <span class="n">ax_2</span><span class="p">)</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="s1">&#39;PSDs in source space&#39;</span><span class="p">)</span>
+<span class="n">ax_1</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Cond 1&#39;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">psd</span> <span class="ow">in</span> <span class="n">cond_1_psds</span><span class="p">:</span>
+    <span class="n">ax_1</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">freqs</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">psd</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+
+<span class="n">ax_2</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Cond 2&#39;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">psd</span> <span class="ow">in</span> <span class="n">cond_2_psds</span><span class="p">:</span>
+    <span class="n">ax_2</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">freqs</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">psd</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img alt="PSDs in source space, Cond 1, Cond 2" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_003.png" />
+<p>Define function for plotting contrast maps.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">plot_contrast_map</span><span class="p">(</span><span class="n">contrast_map</span><span class="p">,</span> <span class="n">vertices</span><span class="p">):</span>
+
+    <span class="n">contrast_map</span> <span class="o">=</span> <span class="n">mne</span><span class="o">.</span><span class="n">SourceEstimate</span><span class="p">(</span><span class="n">contrast_map</span><span class="p">,</span> <span class="n">vertices</span><span class="p">,</span>
+                                      <span class="n">tmin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">tstep</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">subject</span><span class="o">=</span><span class="s1">&#39;sample&#39;</span><span class="p">)</span>
+    <span class="n">brain</span> <span class="o">=</span> <span class="n">contrast_map</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+        <span class="s1">&#39;sample&#39;</span><span class="p">,</span>
+        <span class="n">subjects_dir</span><span class="o">=</span><span class="n">subjects_dir</span><span class="p">,</span>
+        <span class="n">hemi</span><span class="o">=</span><span class="s1">&#39;both&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">size</span><span class="o">=</span><span class="mi">600</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s1">&#39;Contrast map&#39;</span><span class="p">,</span>
+        <span class="n">colorbar</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">time_viewer</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="c1"># add centers corresponding to the labels defined earlier</span>
+    <span class="n">brain</span><span class="o">.</span><span class="n">add_foci</span><span class="p">(</span><span class="n">center_rh_par</span><span class="p">,</span> <span class="n">coords_as_verts</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">hemi</span><span class="o">=</span><span class="s1">&#39;rh&#39;</span><span class="p">)</span>
+    <span class="n">brain</span><span class="o">.</span><span class="n">add_foci</span><span class="p">(</span><span class="n">center_lh_par</span><span class="p">,</span> <span class="n">coords_as_verts</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">hemi</span><span class="o">=</span><span class="s1">&#39;lh&#39;</span><span class="p">)</span>
+    <span class="n">brain</span><span class="o">.</span><span class="n">add_foci</span><span class="p">(</span><span class="n">center_rh_prec</span><span class="p">,</span> <span class="n">coords_as_verts</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">hemi</span><span class="o">=</span><span class="s1">&#39;rh&#39;</span><span class="p">)</span>
+    <span class="n">brain</span><span class="o">.</span><span class="n">add_foci</span><span class="p">(</span><span class="n">center_lh_prec</span><span class="p">,</span> <span class="n">coords_as_verts</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">hemi</span><span class="o">=</span><span class="s1">&#39;lh&#39;</span><span class="p">)</span>
+    <span class="n">brain</span><span class="o">.</span><span class="n">add_foci</span><span class="p">(</span><span class="n">center_rh_temp</span><span class="p">,</span> <span class="n">coords_as_verts</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">hemi</span><span class="o">=</span><span class="s1">&#39;rh&#39;</span><span class="p">)</span>
+    <span class="n">brain</span><span class="o">.</span><span class="n">add_foci</span><span class="p">(</span><span class="n">center_lh_temp</span><span class="p">,</span> <span class="n">coords_as_verts</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">hemi</span><span class="o">=</span><span class="s1">&#39;lh&#39;</span><span class="p">)</span>
+
+    <span class="n">brain</span><span class="o">.</span><span class="n">show_view</span><span class="p">(</span><span class="n">view</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;azimuth&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;elevation&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;distance&#39;</span><span class="p">:</span> <span class="mi">550</span><span class="p">,</span>
+                          <span class="s1">&#39;focalpoint&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]})</span>
+</pre></div>
+</div>
+<p>Plot average contrast map over all subjects.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_contrast_map</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">contrast_maps</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">vertices</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_004.png" />
+<p>Note that the parietal activation is seen especially in the precentral area, where we
+set up “constant” difference. It is not seen in the temporal areas,
+as there the conditions do not differ. It is also not seen in the
+parietal areas, as the differences cancel out there.
+Next, define function for CCA computation.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">compute_cca</span><span class="p">(</span><span class="n">contrast_data</span><span class="p">,</span> <span class="n">behav_data</span><span class="p">,</span> <span class="n">n_contrast_components</span><span class="p">,</span> <span class="n">n_cca_components</span><span class="p">):</span>
+
+    <span class="c1"># rank transform and standardize behav variables</span>
+    <span class="n">behav_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">scipy</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">rankdata</span><span class="p">(</span><span class="n">elem</span><span class="p">)</span> <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">behav_data</span><span class="p">)</span><span class="o">.</span><span class="n">T</span><span class="p">])</span><span class="o">.</span><span class="n">T</span>
+    <span class="n">behav_wh</span> <span class="o">=</span> <span class="p">(</span><span class="n">behav_data</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">behav_data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">behav_data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="c1"># rank transform and reduce dimensionality for contrast data</span>
+    <span class="n">contrast_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">scipy</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">rankdata</span><span class="p">(</span><span class="n">elem</span><span class="p">)</span> <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">contrast_data</span><span class="p">)</span><span class="o">.</span><span class="n">T</span><span class="p">])</span><span class="o">.</span><span class="n">T</span>
+    <span class="n">contrast_pca</span> <span class="o">=</span> <span class="n">PCA</span><span class="p">(</span>
+        <span class="n">n_components</span><span class="o">=</span><span class="n">n_contrast_components</span><span class="p">,</span> <span class="n">whiten</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">rand_state</span><span class="p">)</span>
+    <span class="n">contrast_wh</span> <span class="o">=</span> <span class="n">contrast_pca</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">contrast_data</span><span class="p">)</span>
+    <span class="n">contrast_mixing</span> <span class="o">=</span> <span class="n">contrast_pca</span><span class="o">.</span><span class="n">components_</span>
+
+    <span class="c1"># use partial least squares based CCA from Mai et al (2019).</span>
+    <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span> <span class="o">=</span> <span class="n">cca_ipls</span><span class="p">(</span>
+        <span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span>
+        <span class="n">alpha_lambda_ratio</span><span class="o">=</span><span class="n">penalty_behav_ratio</span><span class="p">,</span>
+        <span class="n">alpha_lambda</span><span class="o">=</span><span class="n">penalty_behav</span><span class="p">,</span>
+        <span class="n">beta_lambda</span><span class="o">=</span><span class="n">penalty_contrast</span><span class="p">,</span>
+        <span class="n">beta_lambda_ratio</span><span class="o">=</span><span class="n">penalty_contrast_ratio</span><span class="p">,</span>
+        <span class="n">standardize</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">n_pairs</span><span class="o">=</span><span class="n">n_cca_components</span><span class="p">,</span> <span class="n">glm_impl</span><span class="o">=</span><span class="s1">&#39;pyglmnet&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">,</span> <span class="n">contrast_mixing</span><span class="p">,</span> <span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span>
+</pre></div>
+</div>
+<p>Use the function to compute the CCA.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">,</span> <span class="n">contrast_mixing</span><span class="p">,</span> <span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span> <span class="o">=</span> <span class="n">compute_cca</span><span class="p">(</span>
+    <span class="n">contrast_maps</span><span class="p">,</span> <span class="n">behavs</span><span class="p">,</span> <span class="n">n_contrast_components</span><span class="o">=</span><span class="n">n_contrast_components</span><span class="p">,</span>
+    <span class="n">n_cca_components</span><span class="o">=</span><span class="n">n_cca_components</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Define function for plotting canonical weights of behavioral variables.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">plot_behav_weights</span><span class="p">(</span><span class="n">comp_idx</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">):</span>
+
+    <span class="n">behav_weights</span> <span class="o">=</span> <span class="n">cca_behav_weights</span><span class="p">[:,</span> <span class="n">comp_idx</span><span class="p">]</span>
+
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+    <span class="n">behav_vars</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Var &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">behav_idx</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">behav_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">behav_weights</span><span class="p">))]</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">behav_vars</span><span class="p">,</span> <span class="n">behav_weights</span><span class="p">,</span> <span class="n">align</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Weight&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Behavioral variable&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Define function for plotting canonical weights of contrast variables.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">plot_contrast_weights</span><span class="p">(</span><span class="n">comp_idx</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">contrast_mixing</span><span class="p">):</span>
+
+    <span class="n">contrast_weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">cca_contrast_weights</span><span class="p">[:,</span> <span class="n">comp_idx</span><span class="p">],</span> <span class="n">contrast_mixing</span><span class="p">)</span>
+    <span class="n">plot_contrast_map</span><span class="p">(</span><span class="n">contrast_weights</span><span class="p">,</span> <span class="n">vertices</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Define function for scatter plot to visualize canonical correlation.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">plot_cca_scatter</span><span class="p">(</span><span class="n">comp_idx</span><span class="p">,</span> <span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">):</span>
+
+    <span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">contrast_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">[:,</span> <span class="n">comp_idx</span><span class="p">])</span>
+    <span class="n">Y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">[:,</span> <span class="n">comp_idx</span><span class="p">])</span>
+
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+
+    <span class="n">left</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">X</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">X</span><span class="p">))</span><span class="o">*</span><span class="mf">0.1</span>
+    <span class="n">right</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">X</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">X</span><span class="p">))</span><span class="o">*</span><span class="mf">0.1</span>
+
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">polyfit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">a</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">b</span><span class="p">)</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">Y</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">Y</span><span class="p">))</span><span class="o">*</span><span class="mf">0.4</span><span class="p">,</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">Y</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">Y</span><span class="p">))</span><span class="o">*</span><span class="mf">0.4</span><span class="p">)</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Behavioral correlate&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Brain corralate&#39;</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>With the functions defined, plot behav weights.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_behav_weights</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_005.png" />
+<p>Plot contrast weights.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_contrast_weights</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">contrast_mixing</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_006.png" />
+<p>Plot scatter plot.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_cca_scatter</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_007.png" />
+<p>Define function for running permuted versions of cca.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">permutations</span><span class="p">(</span><span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">,</span> <span class="n">n_perm</span><span class="p">):</span>
+    <span class="n">perm_stats</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">perm_idx</span><span class="p">,</span> <span class="n">ordering</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">([</span><span class="n">rand_state</span><span class="o">.</span><span class="n">permutation</span><span class="p">(</span><span class="n">behav_wh</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                                         <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_perm</span><span class="p">)]):</span>
+
+        <span class="c1"># use contrast variables as is is but permutate behav variables</span>
+        <span class="n">contrast_perm</span> <span class="o">=</span> <span class="n">contrast_wh</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">behav_perm</span> <span class="o">=</span> <span class="n">behav_wh</span><span class="p">[</span><span class="n">ordering</span><span class="p">,</span> <span class="p">:]</span>
+
+        <span class="n">cca_contrast_weights_perm</span><span class="p">,</span> <span class="n">cca_behav_weights_perm</span> <span class="o">=</span> <span class="n">cca_ipls</span><span class="p">(</span>
+            <span class="n">contrast_perm</span><span class="p">,</span> <span class="n">behav_perm</span><span class="p">,</span>
+            <span class="n">alpha_lambda_ratio</span><span class="o">=</span><span class="n">penalty_behav_ratio</span><span class="p">,</span>
+            <span class="n">alpha_lambda</span><span class="o">=</span><span class="n">penalty_behav</span><span class="p">,</span>
+            <span class="n">beta_lambda</span><span class="o">=</span><span class="n">penalty_contrast</span><span class="p">,</span>
+            <span class="n">beta_lambda_ratio</span><span class="o">=</span><span class="n">penalty_contrast_ratio</span><span class="p">,</span>
+            <span class="n">standardize</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">n_pairs</span><span class="o">=</span><span class="n">n_cca_components</span><span class="p">,</span> <span class="n">glm_impl</span><span class="o">=</span><span class="s1">&#39;pyglmnet&#39;</span><span class="p">)</span>
+
+        <span class="c1"># if n_cca_components &gt; 1, use best coef as it might not</span>
+        <span class="c1"># always be the first due penalties</span>
+        <span class="n">corrcoefs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">comp_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_cca_components</span><span class="p">):</span>
+            <span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">contrast_perm</span><span class="p">,</span> <span class="n">cca_contrast_weights_perm</span><span class="p">[:,</span> <span class="n">comp_idx</span><span class="p">])</span>
+            <span class="n">Y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">behav_perm</span><span class="p">,</span> <span class="n">cca_behav_weights_perm</span><span class="p">[:,</span> <span class="n">comp_idx</span><span class="p">])</span>
+            <span class="n">corrcoefs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="n">perm_stats</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">corrcoefs</span><span class="p">))</span>
+
+    <span class="c1"># The first canonical correlation using the weights computed previously.</span>
+    <span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">contrast_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="n">Y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="n">sample_stat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1"># Compute fraction of coefs from permutations that are higher than the</span>
+    <span class="c1"># sample coefficient.</span>
+    <span class="n">pvalue</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="nb">bool</span><span class="p">,</span> <span class="n">perm_stats</span> <span class="o">&gt;</span> <span class="n">sample_stat</span><span class="p">)))</span> <span class="o">/</span> <span class="n">n_perm</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Corrcoef for first component: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">sample_stat</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span> <span class="o">+</span>
+          <span class="s2">&quot; (pvalue &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">pvalue</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;)&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Run permutations.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">permutations</span><span class="p">(</span><span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">,</span> <span class="n">n_perm</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Corrcoef for first component: 0.8994 (pvalue 0.208)
+</pre></div>
+</div>
+<p>Let’s experiment a bit and try increasing n_subjects to 30.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">n_subjects</span> <span class="o">=</span> <span class="mi">30</span>
+
+<span class="n">behav_data</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_subjects</span><span class="p">):</span>
+    <span class="n">behav_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rand_state</span><span class="o">.</span><span class="n">multivariate_normal</span><span class="p">(</span><span class="n">behav_mean</span><span class="p">,</span> <span class="n">behav_cov</span><span class="p">))</span>
+<span class="n">behav_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">behav_data</span><span class="p">)</span>
+
+<span class="n">cond_1_deps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_subjects</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+<span class="n">cond_2_deps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">behav_data</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_subjects</span><span class="p">)])</span><span class="o">.</span><span class="n">T</span>
+
+<span class="n">raws</span><span class="p">,</span> <span class="n">behavs</span><span class="p">,</span> <span class="n">inv</span> <span class="o">=</span> <span class="n">simulate</span><span class="p">(</span><span class="n">n_subjects</span><span class="p">,</span> <span class="n">cond_1_deps</span><span class="p">,</span> <span class="n">cond_2_deps</span><span class="p">)</span>
+
+<span class="n">contrast_maps</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">raw</span> <span class="ow">in</span> <span class="n">raws</span><span class="p">:</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">compute_activation_maps</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="n">inv</span><span class="p">)</span>
+    <span class="n">contrast_maps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">,</span> <span class="n">contrast_mixing</span><span class="p">,</span> <span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span> <span class="o">=</span> <span class="n">compute_cca</span><span class="p">(</span>
+    <span class="n">contrast_maps</span><span class="p">,</span> <span class="n">behavs</span><span class="p">,</span> <span class="n">n_contrast_components</span><span class="o">=</span><span class="n">n_contrast_components</span><span class="p">,</span>
+    <span class="n">n_cca_components</span><span class="o">=</span><span class="n">n_cca_components</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Show the scatter plot.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_cca_scatter</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_008.png" />
+<p>And the permutation test result.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">permutations</span><span class="p">(</span><span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">,</span> <span class="n">n_perm</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Corrcoef for first component: 0.9264 (pvalue 0.0)
+</pre></div>
+</div>
+<p>Let’s next try making the correlation much weaker, from 1.0 to 0.6,
+keeping the same n_subjects.
+First define a function that when given a vector generates another with prespecified correlation to the first one.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">generate_correlated</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">corr</span><span class="p">):</span>
+    <span class="n">Y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="n">cholesky</span><span class="p">([[</span><span class="mi">1</span><span class="p">,</span> <span class="n">corr</span><span class="p">],</span> <span class="p">[</span><span class="n">corr</span><span class="p">,</span> <span class="mi">1</span><span class="p">]])</span>
+    <span class="n">Y</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">C</span><span class="p">)[:,</span> <span class="mi">1</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Use the function for dependency structure.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cond_1_deps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_subjects</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+<span class="n">cond_2_deps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">generate_correlated</span><span class="p">(</span><span class="n">behav_data</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="mf">0.6</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_subjects</span><span class="p">)])</span><span class="o">.</span><span class="n">T</span>
+</pre></div>
+</div>
+<p>And go on to simulate.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">raws</span><span class="p">,</span> <span class="n">behavs</span><span class="p">,</span> <span class="n">inv</span> <span class="o">=</span> <span class="n">simulate</span><span class="p">(</span><span class="n">n_subjects</span><span class="p">,</span> <span class="n">cond_1_deps</span><span class="p">,</span> <span class="n">cond_2_deps</span><span class="p">)</span>
+
+<span class="n">contrast_maps</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">raw</span> <span class="ow">in</span> <span class="n">raws</span><span class="p">:</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">compute_activation_maps</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="n">inv</span><span class="p">)</span>
+    <span class="n">contrast_maps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">,</span> <span class="n">contrast_mixing</span><span class="p">,</span> <span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span> <span class="o">=</span> <span class="n">compute_cca</span><span class="p">(</span>
+    <span class="n">contrast_maps</span><span class="p">,</span> <span class="n">behavs</span><span class="p">,</span> <span class="n">n_contrast_components</span><span class="o">=</span><span class="n">n_contrast_components</span><span class="p">,</span>
+    <span class="n">n_cca_components</span><span class="o">=</span><span class="n">n_cca_components</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Show the scatter plot.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_cca_scatter</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_009.png" />
+<p>And the permutation test result.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">permutations</span><span class="p">(</span><span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">,</span> <span class="n">n_perm</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Corrcoef for first component: 0.7749 (pvalue 0.0)
+</pre></div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 33 minutes  41.527 seconds)</p>
+<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-cca-simulation-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/fc3b7cf601b047e9dfd2bee090a72f55/plot_cca_simulation.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_cca_simulation.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/5231ee1a059207d4b8e25bb9c16aef79/plot_cca_simulation.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_cca_simulation.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">signals</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2020, Erkka Heinilä.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.2.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/auto_examples/plot_cca_simulation.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
