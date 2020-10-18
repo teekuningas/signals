@@ -227,6 +227,9 @@ for raw in raws:
         tmin=cond_2_ival[0], tmax=cond_2_ival[1])
     ax_2.plot(freqs, np.mean(psds, axis=0))
 
+fig.tight_layout()
+plt.show()
+
 # %%
 # Define functions for computing activation maps, on which contrast maps are based on.
 # Contrast maps are spatial maps, computed by subtracting spatial 
@@ -282,7 +285,9 @@ for psd in cond_1_psds:
 ax_2.set_title('Cond 2')
 for psd in cond_2_psds:
     ax_2.plot(freqs, np.mean(psd.data, axis=0))
-plt.show(block=True)
+
+fig.tight_layout()
+plt.show()
 
 # %%
 # Define function for plotting contrast maps
@@ -346,8 +351,8 @@ def compute_cca(contrast_data, behav_data, n_contrast_components, n_cca_componen
 # %%
 # Use the function to compute the CCA
 
-n_cca_components = 2
-n_contrast_components = 5
+n_cca_components = 1
+n_contrast_components = 4
 
 cca_contrast_weights, cca_behav_weights, contrast_mixing, contrast_wh, behav_wh = compute_cca(
     contrast_maps, behavs, n_contrast_components=n_contrast_components, 
@@ -367,7 +372,7 @@ def plot_behav_weights(comp_idx, cca_behav_weights):
     ax.axhline(0)
     ax.set_ylabel('Weight')
     ax.set_xlabel('Behavioral variable')
-    plt.show(block=True)
+    plt.show()
 
 # %% 
 # Define function for plotting canonical weights of contrast variables
@@ -403,7 +408,7 @@ def plot_cca_scatter(comp_idx, contrast_wh, behav_wh, cca_contrast_weights, cca_
     ax.set_ylabel('Behavioral correlate')
     ax.set_xlabel('Brain corralate')
 
-    plt.show(block=True)
+    plt.show()
 
 # %%
 # With the functions defined, plot behav weights
