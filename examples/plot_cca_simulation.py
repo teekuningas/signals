@@ -336,7 +336,7 @@ def plot_contrast_map(contrast_map, vertices):
 plot_contrast_map(np.mean(contrast_maps, axis=0), vertices)
 
 # %%
-# Note that the parietal activation is seen especially in the precentral area, where we 
+# Note that the activation is seen especially in the precentral area, where we 
 # set up "constant" difference. It is not seen in the temporal areas, 
 # as there the conditions do not differ. It is also not seen in the 
 # parietal areas, as the differences cancel out there.
