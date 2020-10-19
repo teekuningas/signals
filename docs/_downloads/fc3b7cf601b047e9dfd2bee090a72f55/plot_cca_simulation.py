@@ -434,6 +434,8 @@ plot_behav_weights(0, cca_behav_weights)
 plot_contrast_weights(0, cca_contrast_weights, contrast_mixing)
 
 # %%
+# As we see, now the activity is localized to the parietal areas. This is because
+# that is the only place where activity depends on the behav variables.
 # Plot scatter plot.
 
 plot_cca_scatter(0, contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights)
@@ -509,6 +511,16 @@ cca_contrast_weights, cca_behav_weights, contrast_mixing, contrast_wh, behav_wh 
     n_cca_components=n_cca_components)
 
 # %%
+# Plot behav weights.
+
+plot_behav_weights(0, cca_behav_weights)
+
+# %%
+# Plot contrast weights.
+
+plot_contrast_weights(0, cca_contrast_weights, contrast_mixing)
+
+# %%
 # Show the scatter plot.
 
 plot_cca_scatter(0, contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights)
@@ -548,6 +560,58 @@ for raw in raws:
 cca_contrast_weights, cca_behav_weights, contrast_mixing, contrast_wh, behav_wh = compute_cca(
     contrast_maps, behavs, n_contrast_components=n_contrast_components, 
     n_cca_components=n_cca_components)
+
+# %%
+# Plot behav weights.
+
+plot_behav_weights(0, cca_behav_weights)
+
+# %%
+# Plot contrast weights.
+
+plot_contrast_weights(0, cca_contrast_weights, contrast_mixing)
+
+# %%
+# Show the scatter plot.
+
+plot_cca_scatter(0, contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights)
+
+# %% 
+# And the permutation test result.
+
+permutations(contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights, n_perm)
+
+# %% 
+# For curiosity, let's see what happens if there is a two-way dependency, that is,
+# the second condition is positively correlated with the first behav variable and
+# negatively correlated with the second behav variable.
+
+cond_1_deps = np.zeros((n_subjects, 2))
+cond_2_deps = np.array([behav_data[:, 0], -behav_data[:, 1]]).T
+
+# %%
+# And go on to simulate.
+
+raws, behavs, inv = simulate(n_subjects, cond_1_deps, cond_2_deps)
+
+contrast_maps = []
+for raw in raws:
+    result = compute_activation_maps(raw, inv)
+    contrast_maps.append(result[1] - result[0])
+
+cca_contrast_weights, cca_behav_weights, contrast_mixing, contrast_wh, behav_wh = compute_cca(
+    contrast_maps, behavs, n_contrast_components=n_contrast_components, 
+    n_cca_components=n_cca_components)
+
+# %%
+# Plot behav weights.
+
+plot_behav_weights(0, cca_behav_weights)
+
+# %%
+# Plot contrast weights.
+
+plot_contrast_weights(0, cca_contrast_weights, contrast_mixing)
 
 # %%
 # Show the scatter plot.

@@ -460,7 +460,9 @@ Next, define function for CCA computation.</p>
 </pre></div>
 </div>
 <img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_006.png" />
-<p>Plot scatter plot.</p>
+<p>As we see, now the activity is localized to the parietal areas. This is because
+that is the only place where activity depends on the behav variables.
+Plot scatter plot.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_cca_scatter</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -536,11 +538,21 @@ Next, define function for CCA computation.</p>
     <span class="n">n_cca_components</span><span class="o">=</span><span class="n">n_cca_components</span><span class="p">)</span>
 </pre></div>
 </div>
+<p>Plot behav weights.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_behav_weights</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_008.png" />
+<p>Plot contrast weights.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_contrast_weights</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">contrast_mixing</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_009.png" />
 <p>Show the scatter plot.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_cca_scatter</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">)</span>
 </pre></div>
 </div>
-<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_008.png" />
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_010.png" />
 <p>And the permutation test result.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">permutations</span><span class="p">(</span><span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">,</span> <span class="n">n_perm</span><span class="p">)</span>
 </pre></div>
@@ -577,20 +589,73 @@ First define a function that when given a vector generates another with prespeci
     <span class="n">n_cca_components</span><span class="o">=</span><span class="n">n_cca_components</span><span class="p">)</span>
 </pre></div>
 </div>
+<p>Plot behav weights.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_behav_weights</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_011.png" />
+<p>Plot contrast weights.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_contrast_weights</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">contrast_mixing</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_012.png" />
 <p>Show the scatter plot.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_cca_scatter</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">)</span>
 </pre></div>
 </div>
-<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_009.png" />
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_013.png" />
 <p>And the permutation test result.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">permutations</span><span class="p">(</span><span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">,</span> <span class="n">n_perm</span><span class="p">)</span>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Corrcoef for first component: 0.7749 (pvalue 0.0)
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Corrcoef for first component: 0.7451 (pvalue 0.002)
 </pre></div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 33 minutes  41.527 seconds)</p>
+<p>For curiosity, let’s see what happens if there is a two-way dependency, that is,
+the second condition is positively correlated with the first behav variable and
+negatively correlated with the second behav variable.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cond_1_deps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_subjects</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+<span class="n">cond_2_deps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">behav_data</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="n">behav_data</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]])</span><span class="o">.</span><span class="n">T</span>
+</pre></div>
+</div>
+<p>And go on to simulate.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">raws</span><span class="p">,</span> <span class="n">behavs</span><span class="p">,</span> <span class="n">inv</span> <span class="o">=</span> <span class="n">simulate</span><span class="p">(</span><span class="n">n_subjects</span><span class="p">,</span> <span class="n">cond_1_deps</span><span class="p">,</span> <span class="n">cond_2_deps</span><span class="p">)</span>
+
+<span class="n">contrast_maps</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">raw</span> <span class="ow">in</span> <span class="n">raws</span><span class="p">:</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">compute_activation_maps</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="n">inv</span><span class="p">)</span>
+    <span class="n">contrast_maps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">,</span> <span class="n">contrast_mixing</span><span class="p">,</span> <span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span> <span class="o">=</span> <span class="n">compute_cca</span><span class="p">(</span>
+    <span class="n">contrast_maps</span><span class="p">,</span> <span class="n">behavs</span><span class="p">,</span> <span class="n">n_contrast_components</span><span class="o">=</span><span class="n">n_contrast_components</span><span class="p">,</span>
+    <span class="n">n_cca_components</span><span class="o">=</span><span class="n">n_cca_components</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Plot behav weights.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_behav_weights</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_014.png" />
+<p>Plot contrast weights.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_contrast_weights</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">contrast_mixing</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_015.png" />
+<p>Show the scatter plot.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plot_cca_scatter</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="plot cca simulation" class="sphx-glr-single-img" src="../_images/sphx_glr_plot_cca_simulation_016.png" />
+<p>And the permutation test result.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">permutations</span><span class="p">(</span><span class="n">contrast_wh</span><span class="p">,</span> <span class="n">behav_wh</span><span class="p">,</span> <span class="n">cca_contrast_weights</span><span class="p">,</span> <span class="n">cca_behav_weights</span><span class="p">,</span> <span class="n">n_perm</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Corrcoef for first component: 0.9085 (pvalue 0.0)
+</pre></div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 43 minutes  37.338 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-plot-cca-simulation-py">
 <div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../_downloads/fc3b7cf601b047e9dfd2bee090a72f55/plot_cca_simulation.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_cca_simulation.py</span></code></a></p>

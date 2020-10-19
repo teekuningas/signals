@@ -701,6 +701,8 @@ Plot contrast weights.
 
 
 
+As we see, now the activity is localized to the parietal areas. This is because
+that is the only place where activity depends on the behav variables.
 Plot scatter plot.
 
 
@@ -828,6 +830,44 @@ Let's experiment a bit and try increasing n_subjects to 30.
 
 
 
+Plot behav weights.
+
+
+.. code-block:: default
+
+
+    plot_behav_weights(0, cca_behav_weights)
+
+
+
+
+.. image:: /auto_examples/images/sphx_glr_plot_cca_simulation_008.png
+    :alt: plot cca simulation
+    :class: sphx-glr-single-img
+
+
+
+
+
+Plot contrast weights.
+
+
+.. code-block:: default
+
+
+    plot_contrast_weights(0, cca_contrast_weights, contrast_mixing)
+
+
+
+
+.. image:: /auto_examples/images/sphx_glr_plot_cca_simulation_009.png
+    :alt: plot cca simulation
+    :class: sphx-glr-single-img
+
+
+
+
+
 Show the scatter plot.
 
 
@@ -839,7 +879,7 @@ Show the scatter plot.
 
 
 
-.. image:: /auto_examples/images/sphx_glr_plot_cca_simulation_008.png
+.. image:: /auto_examples/images/sphx_glr_plot_cca_simulation_010.png
     :alt: plot cca simulation
     :class: sphx-glr-single-img
 
@@ -931,6 +971,44 @@ And go on to simulate.
 
 
 
+Plot behav weights.
+
+
+.. code-block:: default
+
+
+    plot_behav_weights(0, cca_behav_weights)
+
+
+
+
+.. image:: /auto_examples/images/sphx_glr_plot_cca_simulation_011.png
+    :alt: plot cca simulation
+    :class: sphx-glr-single-img
+
+
+
+
+
+Plot contrast weights.
+
+
+.. code-block:: default
+
+
+    plot_contrast_weights(0, cca_contrast_weights, contrast_mixing)
+
+
+
+
+.. image:: /auto_examples/images/sphx_glr_plot_cca_simulation_012.png
+    :alt: plot cca simulation
+    :class: sphx-glr-single-img
+
+
+
+
+
 Show the scatter plot.
 
 
@@ -942,7 +1020,7 @@ Show the scatter plot.
 
 
 
-.. image:: /auto_examples/images/sphx_glr_plot_cca_simulation_009.png
+.. image:: /auto_examples/images/sphx_glr_plot_cca_simulation_013.png
     :alt: plot cca simulation
     :class: sphx-glr-single-img
 
@@ -968,7 +1046,129 @@ And the permutation test result.
 
  .. code-block:: none
 
-    Corrcoef for first component: 0.7749 (pvalue 0.0)
+    Corrcoef for first component: 0.7451 (pvalue 0.002)
+
+
+
+
+For curiosity, let's see what happens if there is a two-way dependency, that is,
+the second condition is positively correlated with the first behav variable and
+negatively correlated with the second behav variable.
+
+
+.. code-block:: default
+
+
+    cond_1_deps = np.zeros((n_subjects, 2))
+    cond_2_deps = np.array([behav_data[:, 0], -behav_data[:, 1]]).T
+
+
+
+
+
+
+
+
+And go on to simulate.
+
+
+.. code-block:: default
+
+
+    raws, behavs, inv = simulate(n_subjects, cond_1_deps, cond_2_deps)
+
+    contrast_maps = []
+    for raw in raws:
+        result = compute_activation_maps(raw, inv)
+        contrast_maps.append(result[1] - result[0])
+
+    cca_contrast_weights, cca_behav_weights, contrast_mixing, contrast_wh, behav_wh = compute_cca(
+        contrast_maps, behavs, n_contrast_components=n_contrast_components, 
+        n_cca_components=n_cca_components)
+
+
+
+
+
+
+
+
+Plot behav weights.
+
+
+.. code-block:: default
+
+
+    plot_behav_weights(0, cca_behav_weights)
+
+
+
+
+.. image:: /auto_examples/images/sphx_glr_plot_cca_simulation_014.png
+    :alt: plot cca simulation
+    :class: sphx-glr-single-img
+
+
+
+
+
+Plot contrast weights.
+
+
+.. code-block:: default
+
+
+    plot_contrast_weights(0, cca_contrast_weights, contrast_mixing)
+
+
+
+
+.. image:: /auto_examples/images/sphx_glr_plot_cca_simulation_015.png
+    :alt: plot cca simulation
+    :class: sphx-glr-single-img
+
+
+
+
+
+Show the scatter plot.
+
+
+.. code-block:: default
+
+
+    plot_cca_scatter(0, contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights)
+
+
+
+
+.. image:: /auto_examples/images/sphx_glr_plot_cca_simulation_016.png
+    :alt: plot cca simulation
+    :class: sphx-glr-single-img
+
+
+
+
+
+And the permutation test result.
+
+
+.. code-block:: default
+
+
+    permutations(contrast_wh, behav_wh, cca_contrast_weights, cca_behav_weights, n_perm)
+
+
+
+
+
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+    Corrcoef for first component: 0.9085 (pvalue 0.0)
 
 
 
@@ -976,7 +1176,7 @@ And the permutation test result.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 33 minutes  41.527 seconds)
+   **Total running time of the script:** ( 43 minutes  37.338 seconds)
 
 
 .. _sphx_glr_download_auto_examples_plot_cca_simulation.py:
