@@ -84,8 +84,8 @@ if __name__ == '__main__':
         return fname.split('/')[-1].split('_')[1]
     # behav_vars = ['BDI', 'BIS', 'BasTotal']
     # behav_vars = ['BIS']
-    behav_vars = ['BDI', 'BAI', 'BIS', 'BasTotal']
-    # behav_vars = ['BAI', 'BIS']
+    # behav_vars = ['BDI', 'BAI', 'BIS', 'BasTotal']
+    behav_vars = ['BAI', 'BIS']
     # behav_vars = ['BIS']
 
     # # fdmsa
@@ -169,10 +169,8 @@ if __name__ == '__main__':
 
     questionnaire = pd.DataFrame(questionnaire, columns=header)
 
-    import pdb; pdb.set_trace()
-
     pretransform = True
-    n_perm = 200
+    n_perm = 500
     random_state = 10
 
     n_behav_components = len(behav_vars)
@@ -230,6 +228,8 @@ if __name__ == '__main__':
             n_components=n_contrast_components, whiten=True, random_state=random_state)
         contrast_alpha_wh = contrast_alpha_pca.fit_transform(np.array(contrast_data_alpha))
         contrast_alpha_mixing = contrast_alpha_pca.components_
+
+        print("Alpha explained variance: {0}".format(contrast_alpha_pca.explained_variance_ratio_))
         
         contrast_band_data['alpha'] = contrast_data_alpha
         contrast_band_wh['alpha'] = contrast_alpha_wh
@@ -241,6 +241,8 @@ if __name__ == '__main__':
         contrast_beta_wh = contrast_beta_pca.fit_transform(np.array(contrast_data_beta))
         contrast_beta_mixing = contrast_beta_pca.components_
 
+        print("Beta explained variance: {0}".format(contrast_beta_pca.explained_variance_ratio_))
+
         contrast_band_data['beta'] = contrast_data_beta
         contrast_band_wh['beta'] = contrast_beta_wh
         contrast_band_mixing['beta'] = contrast_beta_mixing
@@ -251,6 +253,8 @@ if __name__ == '__main__':
         contrast_theta_wh = contrast_theta_pca.fit_transform(np.array(contrast_data_theta))
         contrast_theta_mixing = contrast_theta_pca.components_
 
+        print("Theta explained variance: {0}".format(contrast_theta_pca.explained_variance_ratio_))
+
         contrast_band_data['theta'] = contrast_data_theta
         contrast_band_wh['theta'] = contrast_theta_wh
         contrast_band_mixing['theta'] = contrast_theta_mixing
@@ -260,18 +264,19 @@ if __name__ == '__main__':
     for band_name in use_bands:
         contrast_wh = np.concatenate([contrast_wh, contrast_band_wh[band_name]], axis=1)
 
-    penalty_behav_ratio=1.0
     # behav_penalty_grid = np.linspace(0, 0.05, 21)
     # behav_penalty_grid = np.array([0.0])
-    # behav_penalty_grid = np.array([0.025])
-    behav_penalty_grid = np.array([0.0])
+    behav_penalty_grid = np.array([0.025])
     penalty_behav = np.mean(behav_penalty_grid)
+    penalty_behav_ratio=1.0
 
-    penalty_contrast_ratio = 0.0
-    # contrast_penalty_grid = np.linspace(0, 7, 3)
     # contrast_penalty_grid = np.linspace(0, 8, 41)
-    contrast_penalty_grid = np.linspace(0, 1, 11)
+    # contrast_penalty_grid = np.linspace(0, 8, 11)
+    # contrast_penalty_grid = np.linspace(0, 7.5, 301)
+    # contrast_penalty_grid = np.array([0])
+    contrast_penalty_grid = np.array([1.475])
     penalty_contrast = np.mean(contrast_penalty_grid)
+    penalty_contrast_ratio = 0.0
 
     # compute weights with guess params
     cca_contrast_weights, cca_behav_weights = cca_ipls(
@@ -285,7 +290,7 @@ if __name__ == '__main__':
     
     print("Find penalties by cross validation")
 
-    n_states = 100
+    n_states = 1000
 
     results = {}
     for cv_behav_penalty in behav_penalty_grid:
@@ -394,6 +399,7 @@ if __name__ == '__main__':
 
     for result_idx in range(n_cca_components):
         res = np.array(results[result_idx])
+
         fig, ax = plt.subplots()
 
         arr = np.zeros((len(behav_penalty_grid), len(contrast_penalty_grid)))
@@ -421,6 +427,32 @@ if __name__ == '__main__':
                 os.makedirs(path)
             fname = cli_args.identifier + '_' + str(result_idx+1) + '.png'
             fig.savefig(os.path.join(path, fname))
+
+        fig, ax = plt.subplots()
+        fig.set_size_inches(20, 10)
+
+        arr = np.zeros((len(contrast_penalty_grid)))
+        for jj in range(len(contrast_penalty_grid)):
+            coef = res[np.where((res[:, 2] == contrast_penalty_grid[jj]) & 
+                                (res[:, 1] == behav_penalty_grid[0]))][0][0]
+            arr[jj] = coef
+
+        ax.plot(contrast_penalty_grid, arr)
+        ax.set_xlabel('Contrast penalty')
+        ax.set_ylabel('Test score')
+
+        if save_path:
+            path = os.path.join(save_path, 'cv_curves')
+            if not os.path.exists(path):
+                os.makedirs(path)
+            fname = cli_args.identifier + '_' + str(result_idx+1) + '.png'
+            fig.savefig(os.path.join(path, fname), dpi=50)
+
+            fname = cli_args.identifier + '_' + str(result_idx+1) + '.csv'
+            with open(os.path.join(path, fname), 'w') as f:
+                f.write(','.join([str(elem) for elem in contrast_penalty_grid]) + '\n')
+                f.write(','.join([str(elem) for elem in arr]))
+
 
     def find_best(arr):
         arr = arr[~np.isnan(arr[:, 0]), :]
@@ -542,18 +574,19 @@ if __name__ == '__main__':
 
             behav_weights = cca_behav_weights[:, comp_idx]
 
-            # # convert from mainly blue to mainly red
-            # if np.mean(contrast_weights_alpha) < 0:
-            #     contrast_weights_alpha = -contrast_weights_alpha
-            #     contrast_weights_beta = -contrast_weights_beta
-            #     behav_weights = -behav_weights
-
             contrast_weights = {}
             for band_idx, band_name in enumerate(use_bands):
                 contrast_weights[band_name] = np.dot(
                     cca_contrast_weights[band_idx*n_contrast_components:(band_idx+1)*n_contrast_components, comp_idx],
                     contrast_band_mixing[band_name])
-     
+
+            # convert from mainly red to mainly blue
+            print("Mean for alpha: {0}".format(np.mean(contrast_weights['alpha'])))
+            if np.mean(contrast_weights['alpha']) > 0:
+                for band_name in use_bands:
+                    contrast_weights[band_name] = -contrast_weights[band_name]
+                behav_weights = -behav_weights
+
             plt.rcParams.update({'font.size': 60.0})
 
             fig = plt.figure()
@@ -625,7 +658,7 @@ if __name__ == '__main__':
 
             ax_reg.set_ylabel('Behavioral correlate (AU)')
             ax_reg.yaxis.label.set_size(80)
-            ax_reg.set_xlabel('Brain corralate (AU)')
+            ax_reg.set_xlabel('Brain correlate (AU)')
             ax_reg.xaxis.label.set_size(80)
             ax_reg.xaxis.set_tick_params(labelsize=60)
             ax_reg.xaxis.label.set_size(80)
@@ -652,6 +685,72 @@ if __name__ == '__main__':
                          '.png')
                 fig.savefig(os.path.join(path, fname), dpi=fig_dpi)
 
+
+            # individual contributions in each band
+            for band_idx, band in enumerate(use_bands):
+                fig = plt.figure()
+
+                n_scatters = len(behav_vars)
+                ax_brain = plt.subplot2grid((1 + 3 + 3*n_scatters, 9), (1, 0), rowspan=2, colspan=8)
+                ax_cbar = plt.subplot2grid((1 + 3 + 3*n_scatters, 9), (1, 8), rowspan=2, colspan=1)
+                ax_scatters = []
+                for behav_idx in range(len(behav_vars)):
+                    ax_scatter = plt.subplot2grid((1 + 3 + 3*n_scatters, 9), (4 + behav_idx*3, 0), rowspan=2, colspan=8)
+                    ax_scatters.append(ax_scatter)
+
+                fig.set_size_inches(40, 20 + 20 * n_scatters)
+                fig_dpi = 15
+                fig.suptitle(str(band))
+
+                brain_weights = contrast_weights[band].copy()
+
+                for behav_idx, behav_var in enumerate(behav_vars):
+
+                    scatter_Y = behav_wh[:, behav_idx]
+                    scatter_X = X.copy()
+
+                    ax_scatter = ax_scatters[behav_idx]
+
+                    ax_scatter.scatter(scatter_X, scatter_Y, c='blue', s=500)
+
+                    m, b = np.polyfit(scatter_X, scatter_Y, 1)
+                    ax_scatter.plot(scatter_X, m*scatter_X + b)
+
+                    ax_scatter.set_ylabel(behav_var + ' score (AU)')
+                    ax_scatter.yaxis.label.set_size(80)
+                    ax_scatter.yaxis.set_tick_params(labelsize=60)
+                    ax_scatter.yaxis.label.set_size(80)
+
+                    ax_scatter.set_xlabel('Brain correlate (AU)')
+                    ax_scatter.xaxis.label.set_size(80)
+                    ax_scatter.xaxis.set_tick_params(labelsize=60)
+                    ax_scatter.xaxis.label.set_size(80)
+
+                plot_vol_stc_brainmap(brain_weights, vertices, vol_spacing, 
+                                      subjects_dir, ax_brain,
+                                      cap=0.0, vmax=vmax_abs)
+
+                cmap = mpl.cm.RdBu_r
+                norm = MidpointNormalize(vmin, vmax)
+                cb = mpl.colorbar.ColorbarBase(ax_cbar, cmap=cmap,
+                    norm=norm,
+                    orientation='vertical')
+                cb.set_label('Weight (AU)', labelpad=10)
+
+                if save_path:
+                    path = os.path.join(save_path, 'individual_contributions_band')
+                    if not os.path.exists(path):
+                        os.makedirs(path)
+                    fname = ('cca_' + str(cli_args.identifier) + '_' + 
+                             str(comp_idx+1).zfill(2) + '_' +
+                             str(round(penalty_behav, 4)).replace('.', '') + '_' +
+                             str(round(penalty_contrast, 4)).replace('.', '') + '_' + 
+                             str(band) + 
+                             '.png')
+                    fig.savefig(os.path.join(path, fname), dpi=fig_dpi)
+
+
+            # individual contributions separately
             for behav_idx, behav_var in enumerate(behav_vars):
                 for band_idx, band in enumerate(use_bands):
 

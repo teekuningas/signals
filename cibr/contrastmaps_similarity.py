@@ -302,7 +302,7 @@ if __name__ == '__main__':
 
         ax_reg.set_ylabel('Behavioral correlate (AU)')
         ax_reg.yaxis.label.set_size(40)
-        ax_reg.set_xlabel('Brain corralate (AU)')
+        ax_reg.set_xlabel('Brain correlate (AU)')
         ax_reg.xaxis.label.set_size(40)
         ax_reg.xaxis.set_tick_params(labelsize=30)
         ax_reg.xaxis.label.set_size(40)

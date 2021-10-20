@@ -140,7 +140,13 @@ def plot_vol_stc_brainmap(brainmap, vertices, spacing, subjects_dir, axes, vmax=
     nifti_inc = stc_inc.as_volume(src).slicer[:, :, :, 0]
     nifti_dec = stc_dec.as_volume(src).slicer[:, :, :, 0]
 
-    display = plot_glass_brain(aseg_img, axes=axes, display_mode='lzr',
+    # no need to add the aseg, it only makes the other side yellow.
+    # display = plot_glass_brain(aseg_img, axes=axes, display_mode='lzr',
+    #                            annotate=False)
+
+    display = plot_glass_brain(stat_map_img=None, 
+                               axes=axes, 
+                               display_mode='lzr',
                                annotate=False)
 
     import matplotlib as mpl
